@@ -15,16 +15,18 @@ one UART and native USB. Two are set up already:
 | Board | Environment | Link pins (RX / TX) | Status |
 |---|---|---|---|
 | Waveshare ESP32-C5-Zero | `c5zero` | GPIO4 / GPIO5 | Tested |
-| Seeed Studio XIAO ESP32-C5 | `xiaoc5` | GPIO23 (D4) / GPIO24 (D5) | Builds, not yet tested on hardware |
+| Seeed Studio XIAO ESP32-C5 | `xiaoc5` | GPIO23 (D4) / GPIO24 (D5) | Tested |
 
-Other boards need their link pins set (section 3).
+Both perform the same on the bench; see RF_RESEARCH.md section 8. Other
+boards need their link pins set (section 3).
 
 ### Antenna
 
 Use an antenna made for 5.8 GHz. Some boards have an RF switch that selects
 between a PCB antenna and a connector; C5MK doesn't drive any switch GPIO, so
-check which antenna your board selects by default. The bench figures in this
-repository are from a C5-Zero with its default antenna path.
+check which antenna your board selects by default. The C5-Zero was tested
+with its default antenna path, and the XIAO ESP32-C5 (which has no antenna
+switch) with an external antenna on its connector.
 
 ### Power and wiring
 

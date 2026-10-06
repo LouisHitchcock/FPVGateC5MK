@@ -2,7 +2,8 @@
 
 What was measured on the bench in October 2026, and what it means. Board:
 Waveshare ESP32-C5-Zero, chip v1.0, gain index 30, bandwidth mode 1,
-Raceband pilots. Transmitter tests used a bench VTX in short bursts.
+Raceband pilots, unless stated otherwise (section 8 compares the Seeed
+Studio XIAO ESP32-C5). Transmitter tests used a bench VTX in short bursts.
 Function names and steps come from our own disassembly of Espressif's
 Apache-2.0 `libphy.a` for the ESP32-C5 (`riscv32-esp-elf-objdump -d -r`).
 
@@ -77,7 +78,7 @@ So a hop costs 68 us, not 398. Caveat: settling was checked only on R1,
 coming from 37 MHz below. The scan also jumps R8 to R1 (259 MHz) every cycle,
 and skip mask 3 relies on whatever `ckgen`/`freq_mem` state the last full
 tune left. Both look fine in use but haven't had a dedicated carrier test
-(section 8).
+(section 9).
 
 ## 3. Post-hop spikes
 
@@ -177,7 +178,28 @@ over fewer samples. That ceiling is why the scan moved onto the C5.
   ms wide, and peak timing on a 1 kHz stream is already well inside 1 ms of
   quantisation.
 
-## 8. Known limitations and open questions
+## 8. Second board: Seeed Studio XIAO ESP32-C5
+
+The `xiaoc5` build was tested on a XIAO ESP32-C5 (chip v1.0) with an
+external antenna, linked to an FPVGate XIAO ESP32-S3 on D4/D5. Same firmware
+as the C5-Zero apart from the link pins.
+
+| | XIAO ESP32-C5 | C5-Zero |
+|---|---|---|
+| Bring-up | `wifi=1`, `gainmax=89`, captures live without the RX-on calls | `wifi=1`, `gainmax=89` |
+| `timer`, n=2048: hop / direct capture / meter | 398 / 55 / 422 us | 398 / 55 / 422 us |
+| Floor, 8 Raceband channels, gain 30 (USB scanner) | -1.7 to -1.9 dB, filtered sd 0.11-0.14 dB | about -2.3 dB, sd 0.14-0.23 dB |
+| DC offset with nothing on air (I / Q) | about -5 / +10 LSB | about -2 LSB |
+| Through FPVGate, 8 pilots, gain 31 | 1031 Hz per pilot, 0 bad records, 0 gaps, 0 drops | 1028-1032 Hz, same |
+| Idle level through FPVGate, gain 31 | 129-133 counts on every slot | |
+| VTX on R8 (bench distance) | R8 rose to 660 counts (+33 dB), steady within 4 counts; R1-R7 unchanged | |
+| VTX off | R8 back at the floor from the first reading | |
+| C5 power-cycled with FPVGate running | FPVGate resumed scanning on its own, no errors | |
+
+The larger DC offset makes no difference to the readings: the meter removes
+DC from every capture. On this evidence the two boards are interchangeable.
+
+## 9. Known limitations and open questions
 
 1. **Post-hop spikes** (section 3): ~1% of captures, carrier only, cause
    unknown. Hidden by the median-of-3.

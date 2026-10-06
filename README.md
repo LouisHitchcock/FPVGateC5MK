@@ -34,7 +34,7 @@ through them on its own and streams timestamped RSSI for every pilot over a
 | Single-quad races through FPVGate | Working |
 | 2-8 pilot races through FPVGate | Implemented; not yet raced with two or more real pilots |
 | Waveshare ESP32-C5-Zero (`c5zero`) | Tested |
-| Seeed Studio XIAO ESP32-C5 (`xiaoc5`) | Builds; not yet tested on hardware |
+| Seeed Studio XIAO ESP32-C5 (`xiaoc5`) | Tested: 1031 Hz per pilot through FPVGate, VTX on R8 received |
 | Lap accuracy against video | Not measured yet |
 
 Known limitations are listed in [docs/RF_RESEARCH.md](docs/RF_RESEARCH.md)
