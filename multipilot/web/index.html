@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<!-- FPVGate C5MK dashboard. Open this file in Chrome or Edge (Web
+     Serial), press Connect and pick the C5's port. Runs locally: no server,
+     no network. Frame format: multipilot/src/frame.h. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPVGate C5MK</title>
+<style>
+  :root { --bg: #0f1115; --panel: #171a21; --line: #2a2f3a; --text: #d8dce4; --dim: #8a93a3; --accent: #4f8cff;
+          --ok: #3ccf6e; --warn: #f0b429; --bad: #ef5350; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px;
+           background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  main { padding: 12px 16px; display: grid; gap: 12px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  section h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+  button, select, input { font: inherit; color: var(--text); background: #222733; border: 1px solid var(--line);
+                          border-radius: 5px; padding: 4px 9px; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.on { background: #2b3d63; border-color: var(--accent); }
+  button:disabled, input:disabled, select:disabled { opacity: .45; cursor: default; }
+  input[type=number] { width: 76px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .lbl { color: var(--dim); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
+  .pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #555; }
+  .pill.ok::before { background: var(--ok); } .pill.bad::before { background: var(--bad); }
+  .stats { display: flex; flex-wrap: wrap; gap: 22px; }
+  .stat .v { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 11px; color: var(--dim); }
+  .stat.warn .v { color: var(--warn); } .stat.bad .v { color: var(--bad); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .card { border: 1px solid var(--line); border-left: 5px solid; border-radius: 6px; padding: 8px 10px; cursor: pointer;
+          background: #1b1f28; user-select: none; }
+  .card.hidden { opacity: .35; }
+  .card .name { display: flex; justify-content: space-between; font-weight: 600; }
+  .card .name span { color: var(--dim); font-weight: 400; }
+  .card .db { font-size: 28px; font-variant-numeric: tabular-nums; margin: 2px 0; }
+  .card .rise { font-size: 13px; font-variant-numeric: tabular-nums; }
+  .card .meta { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; line-height: 1.5; }
+  .card .flags { font-size: 11px; color: var(--bad); min-height: 15px; }
+  .chartwrap { position: relative; }
+  canvas { width: 100%; display: block; }
+  #chart { height: 340px; } #spec { height: 280px; }
+  .tip { position: absolute; pointer-events: none; background: rgba(15,17,21,.94); border: 1px solid var(--line);
+         border-radius: 5px; padding: 6px 8px; font-size: 12px; display: none; white-space: nowrap;
+         font-variant-numeric: tabular-nums; }
+  .tip .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  #log { font: 12px ui-monospace, Consolas, monospace; white-space: pre-wrap; height: 220px; overflow: auto;
+         background: #12151b; border-radius: 5px; padding: 8px; }
+  #log .me { color: var(--accent); } #log .err { color: var(--bad); }
+  table.ir { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+  table.ir td, table.ir th { padding: 2px 10px 2px 0; text-align: right; }
+  table.ir th { color: var(--dim); font-weight: 400; }
+  .dim { color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>FPVGate C5MK</h1>
+  <button id="btnConnect" class="primary">Connect</button>
+  <button id="btnDisconnect" disabled>Disconnect</button>
+  <span id="linkPill" class="pill">not connected</span>
+  <span id="modePill" class="pill"></span>
+  <button id="btnScan" disabled>Scan</button>
+  <label class="lbl">Window <select id="selWindow"><option>5</option><option selected>10</option><option>30</option><option>60</option></select> s</label>
+  <label class="lbl">Show <select id="selSeries"><option value="filt">filtered</option><option value="raw">raw</option><option value="both">both</option></select></label>
+  <label class="lbl">Y <select id="selY"><option value="fixed">-5..40 dB</option><option value="auto">auto</option></select></label>
+  <button id="btnPause">Pause</button>
+  <button id="btnFloor" title="Remember the current levels as the floor; cards then show the rise above it">Set floor</button>
+  <button id="btnRec">Record CSV</button>
+  <span id="recInfo" class="dim"></span>
+</header>
+<main>
+  <section>
+    <div class="stats">
+      <div class="stat" id="stCycle"><div class="v">-</div><div class="k">scan cycle, ms</div></div>
+      <div class="stat" id="stRate"><div class="v">-</div><div class="k">updates/s per pilot</div></div>
+      <div class="stat" id="stGap"><div class="v">-</div><div class="k">max gap (last 2 s), ms</div></div>
+      <div class="stat" id="stSeq"><div class="v">0</div><div class="k">lost cycles</div></div>
+      <div class="stat" id="stCrc"><div class="v">0</div><div class="k">CRC errors</div></div>
+      <div class="stat" id="stDrops"><div class="v">0</div><div class="k">C5 send drops</div></div>
+      <div class="stat" id="stGain"><div class="v">-</div><div class="k">gain index</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>RSSI (dB re 1 LSB²)</h2>
+    <div class="chartwrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
+  </section>
+
+  <section>
+    <h2>Channels <span class="dim" style="text-transform:none">· click a card to hide or show it on the chart</span></h2>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <div class="grid2">
+    <section>
+      <h2>Scanner settings</h2>
+      <div class="row">
+        <label class="lbl">Band <select id="selBand"></select></label>
+        <button id="btnBand" class="needs">Apply band</button>
+        <input id="inPilots" size="34" placeholder="or MHz list: 5880,5917" class="needs">
+        <button id="btnPilots" class="needs">Apply list</button>
+      </div>
+      <div class="row">
+        <label class="lbl">Gain <input type="number" id="inGain" min="0" max="89" value="30" class="needs"></label>
+        <label class="lbl">Settle µs <input type="number" id="inSettle" min="0" max="5000" value="100" class="needs"></label>
+        <label class="lbl">Samples <select id="selN" class="needs"><option>512</option><option>1024</option><option selected>2048</option><option>4096</option></select></label>
+        <label class="lbl">EMA α <input type="number" id="inAlpha" min="0.01" max="1" step="0.05" value="0.3" class="needs"></label>
+        <label class="lbl">Bandwidth <select id="selBw" class="needs"><option value="1">wide</option><option value="0">narrow</option></select></label>
+        <button id="btnApply" class="needs">Apply</button>
+      </div>
+      <div class="row">
+        <button class="needs cmd" data-cmd="status">Status</button>
+        <button class="needs cmd" data-cmd="timer">Timer</button>
+        <button class="needs cmd" data-cmd="cmp 100">Stock vs direct</button>
+        <button class="needs cmd" data-cmd="regs">Registers</button>
+        <button class="needs cmd" data-cmd="help">Help</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Console</h2>
+      <div class="row">
+        <input id="inCmd" style="flex:1" placeholder="command, then Enter" class="needs">
+        <button id="btnSend" class="needs">Send</button>
+        <button id="btnClear">Clear</button>
+      </div>
+      <div id="log"></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>Raw capture spectrum <span class="dim" style="text-transform:none">· x axis is RF offset from the LO (the C5's spectrum is inverted; this view corrects it)</span></h2>
+    <div class="row">
+      <label class="lbl">LO MHz <input type="number" id="inLo" value="5870" min="5100" max="5950" class="needs"></label>
+      <label class="lbl">Samples <select id="selCapN" class="needs"><option>2048</option><option selected>4096</option><option>8192</option></select></label>
+      <button id="btnCapture" class="needs">Capture</button>
+      <button id="btnCapPilot" class="needs" title="Put the LO 10 MHz below the first visible channel">LO = first shown channel - 10</button>
+      <span id="capInfo" class="dim"></span>
+    </div>
+    <div class="chartwrap"><canvas id="spec"></canvas><div class="tip" id="specTip"></div></div>
+    <div id="irTable"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+// RF above the LO appears at negative baseband frequency in the C5's dumps
+// (kSpectrumSign in src/meter.h). The spectrum view uses it to label RF offsets.
+const SPECTRUM_SIGN = -1;
+const FS_MHZ = 80;
+const COLORS = ["#ff6b6b", "#ffd166", "#06d6a0", "#4cc9f0", "#a78bfa", "#f78c6b", "#7bd389", "#f472b6"];
+// Public 5.8 GHz FPV channel tables, MHz.
+const BANDS = {
+  R: [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917],
+  A: [5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725],
+  B: [5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866],
+  E: [5705, 5685, 5665, 5645, 5885, 5905, 5925, 5945],
+  F: [5740, 5760, 5780, 5800, 5820, 5840, 5860, 5880],
+  L: [5362, 5399, 5436, 5473, 5510, 5547, 5584, 5621],
+};
+const BAND_LABEL = { R: "Raceband", A: "Band A", B: "Band B", E: "Band E", F: "Fatshark", L: "Lowband" };
+const FLAG = { FAIL: 1, GAIN: 2, CLIP: 4, FALLBACK: 8 };
+const HISTORY_S = 65;
+const $ = id => document.getElementById(id);
+
+function channelName(mhz) {
+  for (const b of ["R", "F", "E", "A", "B", "L"]) {   // Raceband first for shared frequencies
+    const i = BANDS[b].indexOf(mhz);
+    if (i >= 0) return b + (i + 1);
+  }
+  return mhz + "";
+}
+
+// ---- log --------------------------------------------------------------------
+function log(text, cls) {
+  const el = $("log");
+  const span = document.createElement("span");
+  if (cls) span.className = cls;
+  span.textContent = text;
+  el.appendChild(span);
+  while (el.childNodes.length > 400) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---- framing ----------------------------------------------------------------
+function crc16x25(b, start, end) {
+  let c = 0xFFFF;
+  for (let i = start; i < end; i++) {
+    c ^= b[i];
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (c >>> 1) ^ 0x8408 : c >>> 1;
+  }
+  return (~c) & 0xFFFF;
+}
+
+let rxBuf = new Uint8Array(0);
+const link = { crc: 0, lost: 0, drops: 0, lastSeq: -1 };
+
+function feed(chunk) {
+  const b = new Uint8Array(rxBuf.length + chunk.length);
+  b.set(rxBuf);
+  b.set(chunk, rxBuf.length);
+  let i = 0;
+  for (;;) {
+    while (i + 1 < b.length && !(b[i] === 0xA5 && b[i + 1] === 0x5A)) i++;
+    if (i + 5 > b.length) break;
+    const len = b[i + 3] | (b[i + 4] << 8);
+    if (len > 4096) { i += 2; continue; }
+    if (i + 7 + len > b.length) break;
+    const crc = b[i + 5 + len] | (b[i + 6 + len] << 8);
+    if (crc16x25(b, i + 2, i + 5 + len) !== crc) { link.crc++; i += 2; continue; }
+    onFrame(String.fromCharCode(b[i + 2]), b.slice(i + 5, i + 5 + len));
+    i += 7 + len;
+  }
+  rxBuf = b.slice(Math.min(i, b.length));
+}
+
+function onFrame(type, p) {
+  const dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
+  if (type === "T") log(new TextDecoder().decode(p));
+  else if (type === "R") onRecord(dv);
+  else if (type === "C") onCaptureChunk(dv, p);
+}
+
+// ---- RSSI records ------------------------------------------------------------
+let pilots = [];          // { mhz, name, hidden, t[], raw[], filt[], flags[], floor, lastFlags, clips }
+let tOffset = 0, tPrevUs = -1;   // unwraps the C5's 32-bit µs timestamps
+let lastCycleUs = 0, lastGain = null;
+let recording = false, recRows = [];
+let paused = false;
+
+function chipSeconds(us) {
+  if (tPrevUs >= 0 && us < tPrevUs && tPrevUs - us > 2 ** 31) tOffset += 2 ** 32;
+  tPrevUs = us;
+  return (us + tOffset) / 1e6;
+}
+
+function ensurePilots(list) {
+  const same = list.length === pilots.length && list.every((m, k) => pilots[k].mhz === m);
+  if (same) return;
+  const hiddenBefore = new Set(pilots.filter(p => p.hidden).map(p => p.mhz));
+  pilots = list.map(m => ({ mhz: m, name: channelName(m), hidden: hiddenBefore.has(m), t: [], raw: [], filt: [],
+                             flags: [], floor: null, lastFlags: 0, clips: 0 }));
+  buildCards();
+}
+
+function onRecord(dv) {
+  const seq = dv.getUint16(0, true), count = dv.getUint8(2), hflags = dv.getUint8(3);
+  link.drops = dv.getUint32(4, true);
+  lastCycleUs = dv.getUint32(8, true);
+  if (link.lastSeq >= 0) link.lost += ((seq - link.lastSeq) & 0xFFFF) - 1;
+  link.lastSeq = seq;
+  const recs = [];
+  for (let k = 0; k < count; k++) {
+    const o = 12 + 14 * k;
+    recs.push({ t: dv.getUint32(o, true), raw: dv.getInt16(o + 4, true), filt: dv.getInt16(o + 6, true),
+                mhz: dv.getUint16(o + 8, true), gain: dv.getUint8(o + 10), clips: dv.getUint8(o + 11),
+                flags: dv.getUint8(o + 12) });
+  }
+  ensurePilots(recs.map(r => r.mhz));
+  if (hflags & 1) pilots.forEach(p => { p.t.length = p.raw.length = p.filt.length = p.flags.length = 0; });
+  setMode(hflags & 2 ? "node" : "scan");
+  recs.forEach((r, k) => {
+    const p = pilots[k];
+    const failed = r.flags & FLAG.FAIL;
+    const t = chipSeconds(r.t);
+    // In node mode a record repeats each frequency's latest reading until
+    // the S3 comes back to it: keep only new readings.
+    if (p.t.length && t === p.t[p.t.length - 1]) return;
+    p.t.push(t);
+    p.raw.push(failed ? NaN : r.raw / 100);
+    p.filt.push(r.filt / 100);
+    p.flags.push(r.flags);
+    p.lastFlags = r.flags;
+    p.clips += r.clips;
+    lastGain = r.gain;
+    const tCut = p.t[p.t.length - 1] - HISTORY_S;
+    if (p.t[0] < tCut - 5) {
+      const n = lowerBound(p.t, tCut);
+      p.t.splice(0, n); p.raw.splice(0, n); p.filt.splice(0, n); p.flags.splice(0, n);
+    }
+  });
+  if (recording) {
+    recRows.push([seq, ...recs.flatMap(r => [r.t, r.raw / 100, r.filt / 100, r.flags])].join(","));
+    if (recRows.length % 125 === 0) $("recInfo").textContent = `${recRows.length} cycles`;
+  }
+}
+
+let mode = null;
+function setMode(m) {
+  if (m === mode) return;
+  mode = m;
+  $("modePill").textContent = m === "node" ? "FPVGate node mode (S3 tuning)" : "scanner";
+  $("modePill").className = "pill " + (m === "node" ? "ok" : "");
+}
+
+function lowerBound(arr, v) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < v) lo = m + 1; else hi = m; }
+  return lo;
+}
+
+// ---- cards -------------------------------------------------------------------
+function buildCards() {
+  const el = $("cards");
+  el.innerHTML = "";
+  pilots.forEach((p, k) => {
+    const d = document.createElement("div");
+    d.className = "card" + (p.hidden ? " hidden" : "");
+    d.style.borderLeftColor = COLORS[k % COLORS.length];
+    d.innerHTML = `<div class="name">${p.name}<span>${p.mhz} MHz</span></div>
+      <div class="db" id="cDb${k}">-</div><div class="rise" id="cRise${k}">&nbsp;</div>
+      <div class="meta" id="cMeta${k}"></div><div class="flags" id="cFlags${k}"></div>`;
+    d.onclick = () => { p.hidden = !p.hidden; d.classList.toggle("hidden", p.hidden); };
+    el.appendChild(d);
+  });
+}
+
+function windowStats(p, secs) {
+  const n = p.t.length;
+  if (n < 2) return null;
+  const tEnd = p.t[n - 1], j = lowerBound(p.t, tEnd - secs);
+  let mn = Infinity, mx = -Infinity, sum = 0, cnt = 0, gap = 0, fails = 0, fl = 0;
+  for (let i = j; i < n; i++) {
+    const v = p.filt[i];
+    if (!isNaN(v)) { mn = Math.min(mn, v); mx = Math.max(mx, v); sum += v; cnt++; }
+    if (i > j) gap = Math.max(gap, p.t[i] - p.t[i - 1]);
+    if (p.flags[i] & FLAG.FAIL) fails++;
+    fl |= p.flags[i];
+  }
+  const span = tEnd - p.t[j];
+  return { mn, mx, mean: cnt ? sum / cnt : NaN, gapMs: gap * 1000, rate: span > 0 ? (n - 1 - j) / span : 0, fails, fl };
+}
+
+function renderCards() {
+  let worstGap = 0, minRate = Infinity;
+  pilots.forEach((p, k) => {
+    const s = windowStats(p, 2);
+    if (!s) return;
+    const v = p.filt[p.filt.length - 1];
+    $(`cDb${k}`).textContent = v.toFixed(1);
+    $(`cRise${k}`).textContent = p.floor === null ? " " : `${(v - p.floor) >= 0 ? "+" : ""}${(v - p.floor).toFixed(1)} dB over floor`;
+    $(`cRise${k}`).style.color = p.floor !== null && v - p.floor > 6 ? "var(--ok)" : "var(--dim)";
+    const w = windowStats(p, +$("selWindow").value);
+    $(`cMeta${k}`).innerHTML = `${s.rate.toFixed(0)}/s · gap ${s.gapMs.toFixed(1)} ms<br>` +
+      `window min ${w.mn.toFixed(1)} · max ${w.mx.toFixed(1)}`;
+    const f = [];
+    if (s.fl & FLAG.FAIL) f.push(`dump failed ×${s.fails}`);
+    if (s.fl & FLAG.CLIP) f.push("clipping");
+    if (s.fl & FLAG.GAIN) f.push("gain moved");
+    if (s.fl & FLAG.FALLBACK) f.push("stock fallback");
+    $(`cFlags${k}`).textContent = f.join(" · ");
+    worstGap = Math.max(worstGap, s.gapMs);
+    minRate = Math.min(minRate, s.rate);
+  });
+  setStat("stCycle", lastCycleUs ? (lastCycleUs / 1000).toFixed(2) : "-");
+  setStat("stRate", isFinite(minRate) ? minRate.toFixed(0) : "-", minRate < 110 ? "warn" : "");
+  setStat("stGap", worstGap ? worstGap.toFixed(1) : "-", worstGap > 10 ? "warn" : "");
+  setStat("stSeq", link.lost, link.lost ? "bad" : "");
+  setStat("stCrc", link.crc, link.crc ? "bad" : "");
+  setStat("stDrops", link.drops, link.drops ? "warn" : "");
+  setStat("stGain", lastGain ?? "-");
+}
+
+function setStat(id, v, cls) {
+  const el = $(id);
+  el.querySelector(".v").textContent = v;
+  el.className = "stat" + (cls ? " " + cls : "");
+}
+
+// ---- charts ------------------------------------------------------------------
+function fitCanvas(cv) {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W: r.width, H: r.height };
+}
+
+function niceStep(range, target) {
+  const raw = range / target, p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+  return p * (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10);
+}
+
+function drawAxes(ctx, box, x0, x1, y0, y1, xFmt) {
+  ctx.font = "11px system-ui";
+  ctx.strokeStyle = "#262b35";
+  ctx.fillStyle = "#8a93a3";
+  ctx.lineWidth = 1;
+  const ys = niceStep(y1 - y0, 6);
+  for (let v = Math.ceil(y0 / ys) * ys; v <= y1; v += ys) {
+    const y = box.Y(v);
+    ctx.beginPath(); ctx.moveTo(box.l, y); ctx.lineTo(box.r, y); ctx.stroke();
+    ctx.fillText(v.toFixed(ys < 1 ? 1 : 0), 4, y + 4);
+  }
+  const xs = niceStep(x1 - x0, 8);
+  for (let v = Math.ceil(x0 / xs) * xs; v <= x1; v += xs) {
+    const x = box.X(v);
+    ctx.beginPath(); ctx.moveTo(x, box.t); ctx.lineTo(x, box.b); ctx.stroke();
+    ctx.fillText(xFmt(v), x - 12, box.b + 14);
+  }
+}
+
+let frozenEnd = null;   // chip time at which the chart was paused
+let hoverX = null;
+
+function chartView() {
+  const span = +$("selWindow").value;
+  let tEnd = frozenEnd;
+  if (tEnd === null) {
+    tEnd = -Infinity;
+    pilots.forEach(p => { if (p.t.length) tEnd = Math.max(tEnd, p.t[p.t.length - 1]); });
+  }
+  return { span, tEnd, t0: tEnd - span, mode: $("selSeries").value };
+}
+
+function renderChart() {
+  const cv = $("chart"), { ctx, W, H } = fitCanvas(cv);
+  ctx.clearRect(0, 0, W, H);
+  const v = chartView();
+  if (!isFinite(v.tEnd)) return;
+  let y0 = -5, y1 = 40;
+  if ($("selY").value === "auto") {
+    y0 = Infinity; y1 = -Infinity;
+    pilots.forEach(p => {
+      if (p.hidden) return;
+      for (let i = lowerBound(p.t, v.t0); i < p.t.length; i++) {
+        for (const a of v.mode === "filt" ? [p.filt] : v.mode === "raw" ? [p.raw] : [p.raw, p.filt]) {
+          const x = a[i];
+          if (!isNaN(x)) { y0 = Math.min(y0, x); y1 = Math.max(y1, x); }
+        }
+      }
+    });
+    if (!isFinite(y0)) { y0 = -5; y1 = 40; }
+    const pad = Math.max(1, (y1 - y0) * 0.08);
+    y0 -= pad; y1 += pad;
+  }
+  const box = { l: 34, r: W - 84, t: 8, b: H - 20 };   // right margin holds the live labels
+  box.X = t => box.l + (t - v.t0) / v.span * (box.r - box.l);
+  box.Y = d => box.b - (d - y0) / (y1 - y0) * (box.b - box.t);
+  drawAxes(ctx, box, -v.span, 0, y0, y1, x => x.toFixed(0) + "s");
+  ctx.save();
+  ctx.beginPath(); ctx.rect(box.l, box.t, box.r - box.l, box.b - box.t); ctx.clip();
+  pilots.forEach((p, k) => {
+    if (p.hidden) return;
+    const series = v.mode === "filt" ? [[p.filt, 2, 1]] : v.mode === "raw" ? [[p.raw, 1.2, 1]]
+                                                         : [[p.raw, 1, 0.35], [p.filt, 2, 1]];
+    for (const [a, lw, alpha] of series) {
+      ctx.strokeStyle = COLORS[k % COLORS.length];
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      let pen = false;
+      for (let i = Math.max(0, lowerBound(p.t, v.t0) - 1); i < p.t.length && p.t[i] <= v.tEnd; i++) {
+        if (isNaN(a[i])) { pen = false; continue; }
+        const x = box.X(p.t[i]), y = box.Y(a[i]);
+        pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        pen = true;
+      }
+      ctx.stroke();
+    }
+  });
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  drawLiveLabels(ctx, box, v);
+  if (hoverX !== null) drawHover(box, v);
+  else $("tip").style.display = "none";
+}
+
+// A label at the right end of each visible line: channel name and its latest
+// value (the value at the paused time when paused). Labels are pushed apart
+// so they never overlap, with a leader line back to the line's end.
+function drawLiveLabels(ctx, box, v) {
+  const series = v.mode === "raw" ? "raw" : "filt";
+  const gap = 15;
+  const labels = [];
+  pilots.forEach((p, k) => {
+    if (p.hidden || !p.t.length) return;
+    let j = lowerBound(p.t, v.tEnd + 1e-9) - 1;
+    while (j >= 0 && isNaN(p[series][j])) j--;
+    if (j < 0 || p.t[j] < v.t0) return;
+    const val = p[series][j];
+    const y = Math.max(box.t + 6, Math.min(box.b - 6, box.Y(val)));
+    labels.push({ k, name: p.name, val, x: box.X(p.t[j]), yLine: box.Y(val), y });
+  });
+  labels.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + gap);
+  const over = labels.length ? labels[labels.length - 1].y - (box.b - 6) : 0;
+  if (over > 0) labels.forEach(l => { l.y -= over; });
+  for (let i = labels.length - 2; i >= 0; i--) labels[i].y = Math.min(labels[i].y, labels[i + 1].y - gap);
+  ctx.font = "600 12px system-ui";
+  ctx.textBaseline = "middle";
+  labels.forEach(l => {
+    const col = COLORS[l.k % COLORS.length];
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = 0.6;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(l.x, Math.max(box.t, Math.min(box.b, l.yLine)));
+    ctx.lineTo(box.r + 4, l.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(l.x, Math.max(box.t, Math.min(box.b, l.yLine)), 2.5, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillText(`${l.name} ${l.val.toFixed(1)}`, box.r + 7, l.y);
+  });
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawHover(box, v) {
+  const cv = $("chart"), ctx = cv.getContext("2d");
+  if (hoverX < box.l || hoverX > box.r) { $("tip").style.display = "none"; return; }
+  const t = v.t0 + (hoverX - box.l) / (box.r - box.l) * v.span;
+  ctx.strokeStyle = "#8a93a3"; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(hoverX, box.t); ctx.lineTo(hoverX, box.b); ctx.stroke();
+  ctx.setLineDash([]);
+  let html = `<div class="dim">${(t - v.tEnd).toFixed(2)} s</div>`;
+  pilots.forEach((p, k) => {
+    if (p.hidden || !p.t.length) return;
+    let j = lowerBound(p.t, t);
+    if (j >= p.t.length) j = p.t.length - 1;
+    if (j > 0 && Math.abs(p.t[j - 1] - t) < Math.abs(p.t[j] - t)) j--;
+    const raw = isNaN(p.raw[j]) ? "fail" : p.raw[j].toFixed(1);
+    html += `<div><span class="sw" style="background:${COLORS[k % COLORS.length]}"></span>${p.name} ` +
+            `${p.filt[j].toFixed(1)} <span class="dim">(raw ${raw})</span></div>`;
+  });
+  const tip = $("tip");
+  tip.innerHTML = html;
+  tip.style.display = "block";
+  const left = hoverX + 14 + tip.offsetWidth > box.r ? hoverX - 14 - tip.offsetWidth : hoverX + 14;
+  tip.style.left = left + "px";
+  tip.style.top = "10px";
+}
+
+$("chart").addEventListener("mousemove", e => { hoverX = e.offsetX; });
+$("chart").addEventListener("mouseleave", () => { hoverX = null; });
+
+// ---- capture spectrum ----------------------------------------------------------
+let cap = null;      // { id, lo, gain, total, words: Uint32Array, got }
+let spec = null;     // { f[], db[], lo, pilots[] }
+
+function onCaptureChunk(dv, p) {
+  const id = dv.getUint16(0, true), lo = dv.getUint16(2, true), gain = dv.getUint8(4), bw = dv.getUint8(5);
+  const total = dv.getUint16(6, true), first = dv.getUint16(8, true), count = dv.getUint16(10, true);
+  if (!cap || cap.id !== id) cap = { id, lo, gain, bw, total, words: new Uint32Array(total), got: 0 };
+  for (let i = 0; i < count; i++) cap.words[first + i] = dv.getUint32(12 + 4 * i, true);
+  cap.got += count;
+  if (cap.got >= cap.total) { analyseCapture(cap); cap = null; }
+}
+
+function fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const a = i + k, b = a + len / 2;
+        const xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi;
+        re[a] += xr; im[a] += xi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+}
+
+function analyseCapture(c) {
+  const n = c.total, I = new Float64Array(n), Q = new Float64Array(n);
+  let mi = 0, mq = 0, clips = 0, gmin = 127, gmax = 0;
+  for (let k = 0; k < n; k++) {
+    const w = c.words[k];
+    I[k] = (w << 22) >> 22;
+    Q[k] = (w << 12) >> 22;
+    const g = (w >>> 20) & 0x7F;
+    gmin = Math.min(gmin, g); gmax = Math.max(gmax, g);
+    if (I[k] >= 511 || I[k] <= -512 || Q[k] >= 511 || Q[k] <= -512) clips++;
+    mi += I[k]; mq += Q[k];
+  }
+  mi /= n; mq /= n;
+  const seg = 512, segs = Math.floor(n / seg), psd = new Float64Array(seg);
+  const win = Float64Array.from({ length: seg }, (_, k) => 0.5 - 0.5 * Math.cos(2 * Math.PI * k / seg));
+  const wsum = win.reduce((a, b) => a + b, 0);
+  for (let s = 0; s < segs; s++) {
+    const re = new Float64Array(seg), im = new Float64Array(seg);
+    for (let k = 0; k < seg; k++) { re[k] = (I[s * seg + k] - mi) * win[k]; im[k] = (Q[s * seg + k] - mq) * win[k]; }
+    fftInPlace(re, im);
+    for (let k = 0; k < seg; k++) psd[k] += (re[k] * re[k] + im[k] * im[k]) / (wsum * wsum * segs);
+  }
+  // Bin k is baseband frequency fb; the RF offset above the LO is SPECTRUM_SIGN * fb.
+  const pts = [];
+  for (let k = 0; k < seg; k++) {
+    const fb = (k < seg / 2 ? k : k - seg) * FS_MHZ / seg;
+    pts.push({ f: SPECTRUM_SIGN * fb, p: psd[k] });
+  }
+  pts.sort((a, b) => a.f - b.f);
+  const bandDb = (center, half = 4) => {
+    let s = 0;
+    pts.forEach(q => { if (Math.abs(q.f - center) <= half) s += q.p; });
+    return 10 * Math.log10(s + 1e-12);
+  };
+  const near = pilots.map(p => ({ name: p.name, mhz: p.mhz, off: p.mhz - c.lo }))
+                     .filter(p => Math.abs(p.off) <= 36 && Math.abs(p.off) >= 2);
+  near.forEach(p => { p.sig = bandDb(p.off); p.mir = bandDb(-p.off); });
+  spec = { f: pts.map(q => q.f), db: pts.map(q => 10 * Math.log10(q.p + 1e-12)), lo: c.lo, near };
+  $("capInfo").textContent = `LO ${c.lo} MHz · ${n} samples · gain field ${gmin === gmax ? gmin : gmin + "-" + gmax}` +
+    ` · ${c.bw ? "wide" : "narrow"} · DC ${mi.toFixed(1)}/${mq.toFixed(1)} LSB · clipped ${clips}`;
+  $("irTable").innerHTML = near.length ?
+    `<table class="ir"><tr><th>channel</th><th>offset</th><th>band dB</th><th>mirror dB</th><th>image rejection</th></tr>` +
+    near.map(p => `<tr><td>${p.name}</td><td>${p.off > 0 ? "+" : ""}${p.off} MHz</td><td>${p.sig.toFixed(1)}</td>` +
+                   `<td>${p.mir.toFixed(1)}</td><td>${(p.sig - p.mir).toFixed(1)} dB</td></tr>`).join("") + "</table>"
+    : `<span class="dim">No scanned channel within ±36 MHz of this LO.</span>`;
+  renderSpectrum();
+}
+
+function renderSpectrum() {
+  const cv = $("spec"), { ctx, W, H } = fitCanvas(cv);
+  ctx.clearRect(0, 0, W, H);
+  if (!spec) {
+    ctx.fillStyle = "#8a93a3"; ctx.font = "13px system-ui";
+    ctx.fillText("No capture yet. Captures pause the scan for a moment.", 40, H / 2);
+    return;
+  }
+  const y1 = Math.ceil(Math.max(...spec.db) / 10) * 10 + 5, y0 = Math.min(-30, Math.floor(Math.min(...spec.db) / 10) * 10);
+  const box = { l: 34, r: W - 8, t: 8, b: H - 20 };
+  box.X = f => box.l + (f + 40) / 80 * (box.r - box.l);
+  box.Y = d => box.b - (d - y0) / (y1 - y0) * (box.b - box.t);
+  drawAxes(ctx, box, -40, 40, y0, y1, x => (x > 0 ? "+" : "") + x.toFixed(0));
+  spec.near.forEach(p => {
+    const k = pilots.findIndex(q => q.mhz === p.mhz), col = COLORS[k % COLORS.length];
+    ctx.fillStyle = col; ctx.globalAlpha = 0.14;
+    ctx.fillRect(box.X(p.off - 4), box.t, box.X(p.off + 4) - box.X(p.off - 4), box.b - box.t);
+    ctx.globalAlpha = 0.06;
+    ctx.fillRect(box.X(-p.off - 4), box.t, box.X(-p.off + 4) - box.X(-p.off - 4), box.b - box.t);
+    ctx.globalAlpha = 1; ctx.font = "11px system-ui";
+    ctx.fillText(p.name, box.X(p.off) - 8, box.t + 12);
+    ctx.fillStyle = "#8a93a3"; ctx.fillText("mirror", box.X(-p.off) - 16, box.t + 12);
+  });
+  ctx.strokeStyle = "#d8dce4"; ctx.lineWidth = 1.3; ctx.beginPath();
+  spec.f.forEach((f, i) => { const x = box.X(f), y = box.Y(spec.db[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.stroke();
+  ctx.fillStyle = "#8a93a3"; ctx.font = "11px system-ui";
+  ctx.fillText("MHz from LO (" + spec.lo + ")", box.r - 110, box.b - 6);
+}
+
+// ---- serial --------------------------------------------------------------------
+let port = null, reader = null, writer = null, scanning = true;
+
+async function connect() {
+  try {
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200, bufferSize: 1 << 16 });
+    // Keep DTR and RTS low so opening the port doesn't reset the C5.
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+  } catch (e) {
+    log(`Connect failed: ${e.message}\n`, "err");
+    port = null;
+    return;
+  }
+  writer = port.writable.getWriter();
+  setConnected(true);
+  Object.assign(link, { crc: 0, lost: 0, drops: 0, lastSeq: -1 });
+  await send("status");
+  readLoop();
+}
+
+async function readLoop() {
+  reader = port.readable.getReader();
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) feed(value);
+    }
+  } catch (e) {
+    log(`Link error: ${e.message}\n`, "err");
+  } finally {
+    reader.releaseLock();
+    reader = null;
+  }
+  if (port) await disconnect();
+}
+
+async function disconnect() {
+  const p = port;
+  port = null;
+  try { if (reader) await reader.cancel(); } catch (e) {}
+  try { if (writer) { writer.releaseLock(); writer = null; } } catch (e) {}
+  try { if (p) await p.close(); } catch (e) {}
+  setConnected(false);
+}
+
+async function send(line) {
+  if (!writer) return;
+  log("> " + line + "\n", "me");
+  await writer.write(new TextEncoder().encode(line.trim() + "\n"));
+}
+
+function setConnected(on) {
+  $("btnConnect").disabled = on;
+  $("btnDisconnect").disabled = !on;
+  $("btnScan").disabled = !on;
+  document.querySelectorAll(".needs").forEach(el => { el.disabled = !on; });
+  $("linkPill").className = "pill " + (on ? "ok" : "");
+  $("linkPill").textContent = on ? "connected" : "not connected";
+}
+
+// ---- controls ------------------------------------------------------------------
+for (const b of Object.keys(BANDS)) $("selBand").add(new Option(BAND_LABEL[b], b));
+$("btnConnect").onclick = connect;
+$("btnDisconnect").onclick = disconnect;
+$("btnScan").onclick = async () => {
+  scanning = !scanning;
+  $("btnScan").classList.toggle("on", !scanning);
+  $("btnScan").textContent = scanning ? "Scan" : "Scan (stopped)";
+  await send(scanning ? "scan on" : "scan off");
+};
+$("btnPause").onclick = () => {
+  if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
+  else { frozenEnd = null; $("btnPause").textContent = "Pause"; $("btnPause").classList.remove("on"); }
+};
+$("btnFloor").onclick = () => pilots.forEach(p => { const s = windowStats(p, 2); if (s) p.floor = s.mean; });
+$("btnRec").onclick = () => {
+  if (!recording) {
+    recording = true;
+    recRows = [];
+    $("btnRec").textContent = "Stop & save";
+    $("btnRec").classList.add("on");
+    $("recInfo").textContent = "recording...";
+    return;
+  }
+  recording = false;
+  $("btnRec").textContent = "Record CSV";
+  $("btnRec").classList.remove("on");
+  const head = "seq," + pilots.map(p => `${p.name}_t_us,${p.name}_raw,${p.name}_filt,${p.name}_flags`).join(",");
+  const blob = new Blob([head + "\n" + recRows.join("\n") + "\n"], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `rssi-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.csv`;
+  a.click();
+  $("recInfo").textContent = `saved ${recRows.length} cycles`;
+};
+$("btnBand").onclick = () => send("pilots " + BANDS[$("selBand").value].join(","));
+$("btnPilots").onclick = () => { const v = $("inPilots").value.trim(); if (v) send("pilots " + v); };
+$("btnApply").onclick = async () => {
+  await send("gain " + $("inGain").value);
+  await send("settle " + $("inSettle").value);
+  await send("n " + $("selN").value);
+  await send("alpha " + $("inAlpha").value);
+  await send("bw " + $("selBw").value);
+};
+document.querySelectorAll("button.cmd").forEach(b => { b.onclick = () => send(b.dataset.cmd); });
+$("btnSend").onclick = () => { const v = $("inCmd").value.trim(); if (v) { send(v); $("inCmd").value = ""; } };
+$("inCmd").addEventListener("keydown", e => { if (e.key === "Enter") $("btnSend").click(); });
+$("btnClear").onclick = () => { $("log").innerHTML = ""; };
+$("btnCapture").onclick = () => send(`capture ${$("inLo").value} ${$("selCapN").value}`);
+$("btnCapPilot").onclick = () => {
+  const p = pilots.find(q => !q.hidden);
+  if (p) { $("inLo").value = p.mhz - 10; $("btnCapture").click(); }
+};
+if (!("serial" in navigator)) log("This browser has no Web Serial. Use Chrome or Edge.\n", "err");
+setConnected(false);
+
+let lastCards = 0;
+function frame(ts) {
+  renderChart();
+  if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
+  requestAnimationFrame(frame);
+}
+renderSpectrum();
+window.addEventListener("resize", renderSpectrum);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

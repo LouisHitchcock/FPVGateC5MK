@@ -1,0 +1,12 @@
+{
+  "name": "c5host",
+  "version": "1.0.0",
+  "description": "Host side of the FPVGate C5MK multi-pilot receiver's UART link",
+  "keywords": "fpv, lap timer, esp32-c5, rssi",
+  "license": "CC-BY-NC-SA-4.0",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "srcDir": "."
+  }
+}

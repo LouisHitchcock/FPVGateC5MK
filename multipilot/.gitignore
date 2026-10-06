@@ -1,0 +1,5 @@
+platformio_local*.ini
+logs/
+sdkconfig.c5zero
+sdkconfig.xiaoc5
+.pio/

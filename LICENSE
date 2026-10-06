@@ -1,0 +1,66 @@
+FPVGate C5MK
+Copyright (c) 2026 Louis Hitchcock. All rights reserved except as granted below.
+
+1. NON-COMMERCIAL LICENCE: CC BY-NC-SA 4.0
+------------------------------------------
+
+This work is licensed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International Licence (CC BY-NC-SA 4.0),
+the same licence as FPVGate.
+
+You are free to:
+  - Share: copy and redistribute the material in any medium or format.
+  - Adapt: remix, transform and build upon the material.
+
+Under the following terms:
+  - Attribution: give appropriate credit, link to the licence, and say if you
+    made changes.
+  - NonCommercial: you may not use the material for commercial purposes.
+  - ShareAlike: if you remix, transform or build upon the material, you must
+    distribute your contributions under the same licence as the original.
+  - No additional restrictions: you may not apply legal terms or technical
+    measures that stop others doing anything the licence permits.
+
+Full legal code: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+
+2. COMMERCIAL LICENCE
+---------------------
+
+Commercial use is not allowed under the licence above. That includes, for
+example:
+  - selling hardware that runs this firmware, or selling the firmware itself;
+  - including it in a product, kit or service that is sold;
+  - using it to run a paid timing or other commercial service.
+
+A commercial licence is available separately from the copyright holder,
+Louis Hitchcock. Terms are agreed case by case. To ask, email
+louishitchcock@gmail.com.
+
+Granting a commercial licence to someone doesn't change the non-commercial
+licence offered to everyone else.
+
+3. CLEAN-ROOM STATEMENT
+-----------------------
+
+This firmware was written from scratch. It contains no source code from
+esp-sdr, C5VRX or double-ESP-resso, which are GPL projects, and was not based
+on their code. It is built on Espressif's Apache-2.0 headers and libraries,
+ESP-IDF documentation, public facts, a facts-only specification, and
+measurements made on real hardware. See docs/LICENSING.md and
+docs/PROVENANCE.md.
+
+4. THIRD-PARTY COMPONENTS
+-------------------------
+
+Firmware built from this project also contains other people's software under
+their own licences, mainly ESP-IDF and Espressif's PHY and RF libraries
+(Apache-2.0) and FreeRTOS (MIT). Those licences still apply to those parts, and giving
+someone a firmware binary carries obligations under them. See "Third-party
+components" in docs/LICENSING.md.
+
+5. NO WARRANTY
+--------------
+
+This work is provided as is, without warranty of any kind, express or implied.
+The author is not liable for any claim, damages or other liability arising from
+its use.
