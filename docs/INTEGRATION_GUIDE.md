@@ -30,16 +30,27 @@ switch) with an external antenna on its connector.
 
 ### Power and wiring
 
-The C5 needs 3.3 V and ground, plus two UART lines to the host:
+The C5 needs power and ground, plus two UART lines to the host:
 
 | C5 | Host |
 |---|---|
 | link RX | host UART TX |
 | link TX | host UART RX |
-| 3V3 | 3.3 V supply |
+| 5V (VUSB) | 5 V supply |
 | GND | GND |
 
-The link is 921600 baud, 8N1, 3.3 V logic, no flow control. Keep the wires
+**Supply.** Feed the board's 5V (VUSB) pin so the C5 runs from its own
+regulator. The C5's radio draws a burst of current at start-up (Wi-Fi start
+and 5 GHz calibration), on top of its steady receive current. Measured on the
+bench: a XIAO ESP32-C5 powered from a XIAO ESP32-S3's 3V3 pin, with the S3
+also running its own Wi-Fi, never finished booting and sent nothing on the
+link; wired 5V to 5V it worked at once. If you must use a 3.3 V supply, give
+the C5 its own regulator rated for Wi-Fi loads (500 mA or more), not a pin
+shared with another Wi-Fi chip, and put a bulk capacitor (10-100 uF) across
+3V3 and GND at the C5.
+
+Never connect 5 V to a C5 GPIO: the link lines are 3.3 V logic. The link is
+921600 baud, 8N1, no flow control. Keep the wires
 short. Leave the C5's strapping pins (2, 3, 7, 8, 9, 25-28) free. The C5's
 native USB is only needed for flashing and the development console, and can
 be left unconnected in use.
@@ -144,7 +155,7 @@ thresholds.
 
 | Symptom | Check |
 |---|---|
-| Host never sees a status line | TX/RX crossed over, baud rate, common ground, the C5 powered |
+| Host never sees a status line | TX/RX crossed over, baud rate, common ground. Power: a C5 on a weak or shared 3.3 V supply can reset during radio start-up and never send anything; power it from 5V (section 1). |
 | Status state `ERR_RF` | The radio didn't come up or captures keep failing. Read `status` over USB: is the last boot check `live`? |
 | Status `ERR_FREQ` while slots are set | The host's `P` isn't arriving or is rejected (a bad entry rejects the whole list). The `node` console command over USB counts good, bad and over-long lines and rejected commands. |
 | All slots read the floor with a VTX on | Antenna path (section 1), VTX actually on that channel (the USB dashboard shows all of Raceband) |

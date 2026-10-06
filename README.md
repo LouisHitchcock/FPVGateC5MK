@@ -71,15 +71,21 @@ side; `host/` has a ready-made library and an ESP32-S3 example.
 
 ## Wiring
 
-The C5 needs 3.3 V, ground and two UART lines. On an FPVGate built on a XIAO
+The C5 needs power, ground and two UART lines. On an FPVGate built on a XIAO
 ESP32-S3, the link uses the pins the RX5808 used to:
 
 | Host (XIAO ESP32-S3) | `c5zero` | `xiaoc5` |
 |---|---|---|
 | GPIO4 / D3 (TX) | GPIO4 (RX) | GPIO23 / D4 (RX) |
 | GPIO5 / D4 (RX) | GPIO5 (TX) | GPIO24 / D5 (TX) |
-| 3V3 | 3V3 | 3V3 |
+| 5V (VUSB) | 5V | 5V (VUSB) |
 | GND | GND | GND |
+
+**Power the C5 from 5 V, not from the S3's 3V3 pin.** The C5's radio draws a
+burst of current as it starts, and the XIAO S3's 3.3 V regulator, already
+running the S3's own Wi-Fi, can't supply it: powered that way, a XIAO
+ESP32-C5 never finished booting. 5V to 5V lets the C5 use its own regulator.
+See [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) section 1.
 
 The link is 921600 baud, 8N1, 3.3 V logic, no flow control. The C5's native
 USB is for flashing and the development console only.
