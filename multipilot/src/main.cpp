@@ -585,6 +585,7 @@ bool parsePilots(char* args) {
 void handle(char* line) {
     char* cmd = strtok(line, " ");
     if (!cmd) return;
+    nodelink::confirmImage();   // someone is talking to this image over USB
     char* arg = strtok(nullptr, "");
     int iv = arg ? atoi(arg) : 0;
     if (!strcmp(cmd, "help")) {

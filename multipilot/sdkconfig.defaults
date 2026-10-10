@@ -32,3 +32,10 @@ CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
 # Flash on the Waveshare C5-Zero
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Two app slots for updates over the link. A new image runs on trial and
+# the bootloader goes back to the old one unless it confirms itself
+# (node.cpp: once it hears the S3).
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

@@ -1,5 +1,6 @@
 platformio_local*.ini
 logs/
-sdkconfig.c5zero
-sdkconfig.xiaoc5
+# Generated per environment from sdkconfig.defaults.
+sdkconfig.*
+!sdkconfig.defaults
 .pio/

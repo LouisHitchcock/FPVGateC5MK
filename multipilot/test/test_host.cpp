@@ -104,7 +104,7 @@ static void testStartupAndValues() {
     b.host.setSlots(kRaceband);
     b.host.begin(b.hostNow());
     b.run(20);
-    CHECK(b.host.firmware() == 2);
+    CHECK(b.host.firmware() == 3);
     CHECK(b.host.scanning());
     CHECK(strcmp(b.host.state(), "SCAN") == 0);
     CHECK(b.core->state() == node::State::Scan);
@@ -190,7 +190,7 @@ static void testLostSlotList() {
     Bench b;
     b.host.setSlots(kRaceband);
     b.host.begin(b.hostNow());
-    while (b.host.firmware() != 2 && b.step < 10) b.run(1);
+    while (b.host.firmware() != 3 && b.step < 10) b.run(1);
     CHECK(b.wire.toC5.find("P,5658") != std::string::npos);
     b.wire.toC5.clear();   // the P never arrives
     b.run(20);
