@@ -29,6 +29,10 @@ void phy_i2c_sdm_en(uint8_t is5g);
 void phy_ckgen_5g_cal(uint32_t mhz);
 void phy_freq_mem_change_5g_(void* sdm);
 uint8_t phy_i2c_readReg(uint8_t block, uint8_t host, uint8_t reg);
+// Baseband and RF AGC. A channel change turns them back on, so they are
+// shut off again with every forced gain.
+void phy_disable_agc(void);
+void phy_rfagc_disable(void);
 // librftest
 void force_rx_gain(int enable, int index, int bt);
 
@@ -43,6 +47,7 @@ int cmd_parse(void* arg) {
 namespace radio {
 namespace {
 constexpr uint32_t kRegGain = 0x600A702C;   // forced index 24-31, force bit 23, max 8-14
+constexpr uint32_t kRegAgc = 0x600A7030;    // bit 29 set: baseband AGC held off
 constexpr int kParamXtalSel = 49;           // the byte phy_chip_set_chan forwards to the PLL setter
 constexpr int kParamTrim = 30;              // the int16 it forwards as the third argument
 constexpr int kBandSetupMhz = 5180;
@@ -59,6 +64,9 @@ bool begin(int bwMode) {
     }
     esp_event_loop_create_default();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    // A disconnected-station wake runs phy_wakeup_init, which calls
+    // phy_enable_agc and drops the gain lock.
+    cfg.sta_disconnected_pm = false;
     if (esp_wifi_init(&cfg) != ESP_OK) return false;
     esp_wifi_set_storage(WIFI_STORAGE_RAM);
     if (esp_wifi_set_mode(WIFI_MODE_NULL) != ESP_OK) return false;
@@ -122,7 +130,20 @@ uint8_t pllReg(int reg) { return phy_i2c_readReg(kI2cPll, 1, (uint8_t)reg); }
 void fullTune(int mhz, int bwMode) { phy_set_chanfreq((uint32_t)mhz, (uint8_t)(bwMode ? 1 : 0)); }
 
 // Third argument 0: the direct register write, no Bluetooth path, no delay.
-void forceGain(int index) { force_rx_gain(1, index, 0); }
+// phy_disable_agc and phy_rfagc_disable are what hold a steady carrier still:
+// force_rx_gain alone only pins the digital index, and the packet AGC then
+// re-acquires (a ramp, then a snap). Rewriting that force while it already
+// holds drops the PHY into debug mode for a few microseconds, which shows up
+// as a sawtooth, so the writes happen only after the lock has been cleared.
+void forceGain(int index) {
+    uint32_t gain = *(volatile uint32_t*)kRegGain;
+    uint32_t agc = *(volatile uint32_t*)kRegAgc;
+    bool held = ((agc >> 29) & 1u) && ((gain >> 23) & 1u) && ((gain >> 24) == (uint32_t)index);
+    if (held) return;
+    phy_disable_agc();
+    phy_rfagc_disable();
+    force_rx_gain(1, index, 0);
+}
 
 uint32_t gainReg() { return *(volatile uint32_t*)kRegGain; }
 int gainMax() { return (int)((gainReg() >> 8) & 0x7F); }
