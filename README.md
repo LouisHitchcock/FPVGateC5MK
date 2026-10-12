@@ -90,6 +90,18 @@ See [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) section 1.
 The link is 921600 baud, 8N1, 3.3 V logic, no flow control. The C5's native
 USB is for flashing and the development console only.
 
+## Releases and updates
+
+Each release has ready-built firmware for both boards in
+`release/<board>/` ([release/README.md](release/README.md)). Flash a C5 over
+USB once with the full set (bootloader, partition table, OTA data and
+firmware). From 1.1.0, FPVGate (1.9.0-Multi-Alpha-3 and later) can then
+update it over the existing link from **Settings > System > C5 Receiver
+Firmware**, with no USB cable: it lists these releases, checks the image is
+for the C5's board, and the C5 goes back to its previous firmware if the new
+one can't reach the gate. C5s on 1.0 or earlier need that first USB flash,
+as 1.1.0 changes the flash layout.
+
 ## Documentation
 
 | Document | Contents |
@@ -118,6 +130,7 @@ host/                       the receiving side, for your own timer
   c5host/                   portable C++ library for the UART link and gate passes
   examples/esp32s3/         minimal ESP32-S3 host (PlatformIO, Arduino)
 docs/                       documentation
+release/<board>/            ready-built firmware for the current release
 ```
 
 ## Acknowledgements
