@@ -372,6 +372,7 @@ void Core::scanCycle(uint32_t nowUs) {
         pl[k++] = (uint8_t)dt;
         pl[k++] = (uint8_t)(dt >> 8);
         if (view && !(value & kValueFailed)) onSample(scanMhz_[i], db, f, value, t);
+        if (onScanSample && !(value & kValueFailed)) onScanSample((unsigned)i, value, t);
     }
     pl[0] = (uint8_t)kRecordScan;
     pl[1] = cycleSeq_++;

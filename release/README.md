@@ -9,10 +9,15 @@ marks:
 | `xiaoc5/` | Seeed Studio XIAO ESP32-C5 |
 
 The two boards use different link pins, so flash the folder for your board.
-Each image carries its board in its version (`1.1.0+c5zero`), and FPVGate
+Each image carries its board in its version (`1.2.0+c5zero`), and FPVGate
 won't send an image to a C5 of the other board.
 
 ## First flash, over USB
+
+From 1.2.0, the same board-specific firmware also supports direct USB timing
+in RotorHazard, without an S3 or FPVGate plugin. RH's revision request selects
+that mode automatically. Add the USB serial port in RH's Advanced Settings
+and restart RH; see [the USB setup guide](../docs/USB_ROTORHAZARD.md).
 
 A new C5, or one on 1.0 or earlier, needs the full set once over its USB
 port. 1.1.0 adds a second app slot for updates, so the partition table
@@ -44,3 +49,14 @@ reach the gate within 60 s the C5 goes back to its previous firmware. See
 
 Only `firmware.bin` goes over the link. The bootloader, partition table and
 OTA data are for the first USB flash.
+
+1.2.0 keeps the 1.1.0 partition layout. A C5 already running 1.1.0 can receive
+the application update through FPVGate. Direct USB users should close RH's
+serial connection before flashing. Do not use RH's STM32 node updater on a C5.
+
+Both boards have built binaries. Waveshare USB discovery and local timing
+have been tested; physical XIAO USB validation is pending. See
+[1.2.0 release notes](RELEASE_NOTES.md) for the validation scope.
+
+`SHA256SUMS.txt` contains hashes using the board-prefixed GitHub asset names.
+The repository's `release/<board>/` files contain the same bytes.

@@ -23,7 +23,14 @@ bash test/run.sh
   values per slot, timestamps and clock mapping, a corrupted record, a C5
   reboot, a lost slot list, gain and slot changes, and gate-pass detection.
 
-Expected: 60 meter checks, 1139 node checks and 48 host checks, all passing.
+The USB endpoint has its own `test_rh_usb.cpp` checks for API 35 discovery,
+checksums, seat selection, frequency/threshold isolation, peak-plateau timing,
+split snapshot reads, counter/time rollover, stale samples and partial writes.
+`test_rh_usb.py` exercises RH's actual serial client against that endpoint;
+see [USB_ROTORHAZARD.md](USB_ROTORHAZARD.md) for its environment and command.
+
+USB and UART ownership switching still needs a physical board test. Passing
+the portable tests does not establish RF performance or USB driver behaviour.
 
 ## Firmware builds
 

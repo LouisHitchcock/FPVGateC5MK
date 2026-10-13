@@ -1,2 +1,4 @@
 .dev/
 .pio/
+__pycache__/
+*.py[cod]

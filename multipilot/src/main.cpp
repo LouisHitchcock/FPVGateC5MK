@@ -754,7 +754,8 @@ void scanTask(void*) {
     for (;;) {
         // In node mode a pass can be a whole ~1 ms scan cycle; the USB
         // console still answers within ~16 ms.
-        bool consoleDue = !nodelink::active() || (++passes & 15) == 0;
+        // Native RH requests need a prompt reply for its round-trip clock correction.
+        bool consoleDue = nodelink::rhUsbActive() || !nodelink::active() || (++passes & 15) == 0;
         if (const char* l = consoleDue ? hostlink::pollLine() : nullptr) {
             static char copy[160];
             strncpy(copy, l, sizeof copy - 1);

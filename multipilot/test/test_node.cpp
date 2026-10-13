@@ -556,6 +556,21 @@ int main() {
         CHECK(g.io.out.back().rfind("u,err,unsupported", 0) == 0 && g.core.state() == node::State::NoFreq);
     }
 
+    {
+        static unsigned callbacks = 0;
+        callbacks = 0;
+        Rig g;
+        g.core.onScanSample = [](unsigned slot, uint16_t value, uint32_t) {
+            ++callbacks;
+            CHECK(slot < 2 && value <= 1023);
+        };
+        g.rx(frame("P,5658,5695"));
+        for (unsigned i = 0; i < 20; ++i) g.core.step(i * 1000);
+        CHECK(callbacks == 40);  // full-rate timing samples, not every 16th cycle
+        g.radio.failMeasure = true;
+        g.core.step(21000);
+        CHECK(callbacks == 40);  // failed captures never create timing samples
+    }
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

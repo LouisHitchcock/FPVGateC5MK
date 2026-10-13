@@ -16,6 +16,7 @@ void poll();
 // readings for the USB dashboard.
 void step();
 bool active();
+bool rhUsbActive();
 // Leaving node mode drops the frequency (status ERR_FREQ, MHz 0) so the
 // scanner can use the radio; the S3's next F command takes it back.
 void deactivate();

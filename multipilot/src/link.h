@@ -17,6 +17,10 @@ void say(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 // nullptr.
 const char* pollLine();
 uint32_t drops();
+// Optional binary endpoint checked before console lines. Only probes at a line boundary.
+void setByteHandler(bool (*handler)(uint8_t));
+void setBinaryMode(bool enabled);
+bool sendRaw(const uint8_t* data, size_t size);
 
 }  // namespace hostlink
 

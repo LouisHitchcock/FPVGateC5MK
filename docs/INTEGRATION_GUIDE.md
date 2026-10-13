@@ -52,7 +52,8 @@ shared with another Wi-Fi chip, and put a bulk capacitor (10-100 uF) across
 Never connect 5 V to a C5 GPIO: the link lines are 3.3 V logic. The link is
 921600 baud, 8N1, no flow control. Keep the wires
 short. Leave the C5's strapping pins (2, 3, 7, 8, 9, 25-28) free. The C5's
-native USB is only needed for flashing and the development console, and can
+native USB is only needed for flashing and the development console in this
+S3/UART configuration, and can
 be left unconnected in use.
 
 ## 2. Flashing

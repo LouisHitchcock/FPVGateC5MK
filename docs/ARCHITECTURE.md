@@ -6,6 +6,10 @@ here is FPVGate on an ESP32-S3; any other host follows the same split (see
 
 ## The two chips
 
+For direct connection to RH, `1.2.0` and later can instead run their own crossing
+detector and expose eight native serial nodes over USB. The S3 is then absent;
+RH is the race controller. See [USB_ROTORHAZARD.md](USB_ROTORHAZARD.md).
+
 | | ESP32-C5 (this repo) | Host: ESP32-S3 running FPVGate |
 |---|---|---|
 | Role | RF front end: measures every pilot's signal | Controller: lap timing, races, web app, storage |

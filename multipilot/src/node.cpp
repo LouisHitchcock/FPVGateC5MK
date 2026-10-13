@@ -13,6 +13,7 @@
 #include "link.h"
 #include "mbedtls/sha256.h"
 #include "nvs.h"
+#include "rh_usb.h"
 
 // The link UART. Its own pins, so no boot or debug text ever reaches the S3.
 // On a XIAO-based FPVGate the link uses the old RX5808 pins, GPIO for GPIO:
@@ -34,14 +35,17 @@ constexpr int64_t kViewEveryUs = 20000;
 // A new image that hasn't heard the S3 (or the USB console) this long after
 // booting restarts, and the bootloader goes back to the previous one.
 constexpr int64_t kTrialUs = 60000000;
+bool rhActive = false;
 
 struct UartIo : node::Io {
     bool echo = false;
     void write(const char* line, size_t n) override {
+        if (rhActive) return;  // RH reads binary snapshots, not the S3 stream.
         uart_write_bytes(kUart, line, n);
         if (echo && n && (uint8_t)line[0] != node::kRecordSync) hostlink::send(mp::kTypeText, line, (uint16_t)n, 5);
     }
     bool rxPending() override {
+        if (rhActive) return false;
         size_t n = 0;
         uart_get_buffered_data_len(kUart, &n);
         return n > 0;
@@ -115,6 +119,18 @@ struct ViewSlot {
 UartIo io;
 OtaUpdate ota;
 node::Core* core = nullptr;
+
+struct RhPort : rhusb::Port {
+    void write(const uint8_t* data, size_t size) override { hostlink::sendRaw(data, size); }
+    void frequencies(const uint16_t* mhz) override {
+        char payload[64];
+        size_t used = (size_t)snprintf(payload, sizeof payload, "P");
+        for (unsigned i = 0; i < rhusb::kSeats; ++i)
+            used += (size_t)snprintf(payload + used, sizeof payload - used, ",%u", mhz[i]);
+        core->handle(payload, (uint32_t)esp_timer_get_time());
+    }
+} rhPort;
+rhusb::Core rh(rhPort);
 bool onTrial = false;   // a new image not yet confirmed
 bool isActive = false;
 bool enabled = true;     // `node off` ignores the S3
@@ -125,6 +141,31 @@ int64_t lastView = 0;
 uint16_t viewSeq = 0;
 
 uint32_t nowUs() { return (uint32_t)esp_timer_get_time(); }
+void rhSample(unsigned slot, uint16_t value, uint32_t sampleUs);
+
+bool usbByte(uint8_t byte) {
+    uint32_t nowMs = (uint32_t)(esp_timer_get_time() / 1000);
+    if (!rhActive) {
+        // Do not steal an active S3's radio. Only the RH revision probe claims USB.
+        if (byte != rhusb::READ_REVISION_CODE || isActive || core->state() == node::State::ErrRf) return false;
+        rhActive = true;
+        isActive = true;
+        core->onScanSample = rhSample;
+        rh.begin(nowMs);
+        hostlink::setBinaryMode(true);
+        confirmImage();
+    }
+    rh.feed(byte, nowMs);
+    return true;
+}
+
+void rhSample(unsigned slot, uint16_t value, uint32_t sampleUs) {
+    if (!rhActive) return;
+    // Extend the scan's 32-bit microsecond timestamp before converting to milliseconds.
+    uint64_t now = (uint64_t)esp_timer_get_time();
+    uint32_t age = (uint32_t)now - sampleUs;
+    rh.sample(slot, value, (uint32_t)((now - age) / 1000));
+}
 
 int loadGain() {
     nvs_handle_t h;
@@ -219,6 +260,8 @@ void begin(node::RadioPort* radio, bool radioOk) {
     char* plus = strchr(version, '+');
     if (plus) *plus++ = 0;
     core->setIdentity(version, plus ? plus : "?");
+    rh.setIdentity(version, plus ? plus : "ESP32-C5");
+    hostlink::setByteHandler(usbByte);
     esp_ota_img_states_t state;
     onTrial = esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) == ESP_OK &&
               state == ESP_OTA_IMG_PENDING_VERIFY;
@@ -234,6 +277,7 @@ void poll() {
     uint8_t buf[128];
     int n;
     while ((n = uart_read_bytes(kUart, buf, sizeof buf, 0)) > 0) {
+        if (rhActive) continue;
         if (!enabled) continue;
         uint32_t before = core->reader.good;
         for (int i = 0; i < n; ++i) core->onByte((char)buf[i], nowUs());
@@ -251,6 +295,15 @@ void confirmImage() {
 }
 
 void step() {
+    if (rhActive && rh.expired((uint32_t)(esp_timer_get_time() / 1000))) {
+        rh.end();
+        core->handle("F,0", nowUs());
+        rhActive = false;
+        core->onScanSample = nullptr;
+        isActive = false;
+        viewCount = 0;
+        hostlink::setBinaryMode(false);
+    }
     if (onTrial && esp_timer_get_time() >= kTrialUs) esp_restart();   // back to the previous image
     core->step(nowUs());
     if (core->gain() != storedGain) {
@@ -258,13 +311,14 @@ void step() {
         saveGain(storedGain);
     }
     int64_t t = esp_timer_get_time();
-    if (isActive && t - lastView >= kViewEveryUs) {
+    if (isActive && !rhActive && t - lastView >= kViewEveryUs) {
         lastView = t;
         sendView();
     }
 }
 
 bool active() { return isActive; }
+bool rhUsbActive() { return rhActive; }
 
 void deactivate() {
     if (!isActive) return;

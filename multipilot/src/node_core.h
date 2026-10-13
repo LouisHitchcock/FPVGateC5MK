@@ -152,6 +152,8 @@ public:
     // Called for every R sample sent, and in scan mode for each slot every
     // kViewEvery cycles (for the USB view).
     void (*onSample)(int mhz, float rawDb, float filtDb, uint16_t rssi, uint32_t nowUs) = nullptr;
+    // Optional timing consumer, every successful slot capture (not the decimated USB view).
+    void (*onScanSample)(unsigned slot, uint16_t rssi, uint32_t nowUs) = nullptr;
 
     uint8_t scanMask() const { return scanMask_; }
 

@@ -36,6 +36,7 @@ through them on its own and streams timestamped RSSI for every pilot over a
 | Waveshare ESP32-C5-Zero (`c5zero`) | Tested |
 | Seeed Studio XIAO ESP32-C5 (`xiaoc5`) | Tested: 1031 Hz per pilot through FPVGate, VTX on R8 received |
 | Lap accuracy against video | Not measured yet |
+| Direct USB to RotorHazard (no S3), from `1.2.0` | Waveshare C5-Zero: eight R1-R8 nodes and live RSSI verified, timing reported working in local RH testing; XIAO USB validation pending |
 
 Known limitations are listed in [docs/RF_RESEARCH.md](docs/RF_RESEARCH.md)
 (image rejection, post-hop spikes, untested bands).
@@ -87,8 +88,13 @@ running the S3's own Wi-Fi, can't supply it: powered that way, a XIAO
 ESP32-C5 never finished booting. 5V to 5V lets the C5 use its own regulator.
 See [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) section 1.
 
-The link is 921600 baud, 8N1, 3.3 V logic, no flow control. The C5's native
-USB is for flashing and the development console only.
+The link is 921600 baud, 8N1, 3.3 V logic, no flow control. Alternatively,
+From `1.2.0`, C5MK can connect directly to RotorHazard over native USB: no S3,
+network connection or plugin is required. Select the port in RH's Advanced
+Settings once and restart RH. See [USB RotorHazard setup](docs/USB_ROTORHAZARD.md).
+Native USB still supports flashing and the development console when RH is
+not using the port. Each board's firmware supports both USB and S3/UART;
+there is no separate USB-only image.
 
 ## Releases and updates
 
@@ -116,6 +122,7 @@ as 1.1.0 changes the flash layout.
 | [RF_RESEARCH.md](docs/RF_RESEARCH.md) | Bench measurements: retune time, passband, image rejection, the path to 1 kHz |
 | [FPVGATE_INTEGRATION.md](docs/FPVGATE_INTEGRATION.md) | The FPVGate (ESP32-S3) side, as a reference host implementation |
 | [TESTING.md](docs/TESTING.md) | PC tests and hardware checks |
+| [USB_ROTORHAZARD.md](docs/USB_ROTORHAZARD.md) | Direct USB race timing with native RH receivers, without an S3 |
 | [LICENSING.md](docs/LICENSING.md), [PROVENANCE.md](docs/PROVENANCE.md) | The licence, and where each technical fact came from |
 
 ## Repository layout
