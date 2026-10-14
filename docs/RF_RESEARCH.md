@@ -101,7 +101,7 @@ they don't affect laps.
 **Cause: rewriting the gain force.** Up to firmware 1.2.0, `forceGain` called
 `force_rx_gain` after every hop even when the force was already in place.
 RaceFPV pointed out that rewriting a force that already holds disturbs the
-receiver for a moment. From the next release, `forceGain` reads `0x600A702C`
+receiver for a moment. From 1.2.1, `forceGain` reads `0x600A702C`
 and writes only if the force bit is clear or the index differs.
 
 C5-Zero, gain 30, USB scanner (n=2048, raw readings), comparing 1.2.0 with
@@ -238,7 +238,7 @@ DC from every capture. On this evidence the two boards are interchangeable.
 ## 9. Known limitations and open questions
 
 1. **Post-hop spikes** (section 3): caused by rewriting the gain force;
-   fixed after 1.2.0. Measured at gains 30 and 31 only.
+   fixed in 1.2.1. Measured at gains 30 and 31 only.
 2. **Skip mask 3 and settle-free captures** were carrier-checked only on R1
    from 37 MHz below; not yet across the band or on the R8 to R1 jump.
 3. **Image rejection ~18 dB** at gain 30: ghosts are possible on ~20 MHz

@@ -151,6 +151,11 @@ published that ESP32 radios have a raw I/Q capture path.
 C5MK contains no code from either project; see
 [docs/PROVENANCE.md](docs/PROVENANCE.md).
 
+Thanks to [RaceFPV](https://github.com/RaceFPV) for finding that rewriting
+the gain force on every hop disturbs the receiver, the fix behind 1.2.1's
+steadier readings, and for pinning the build platform
+([#1](https://github.com/LouisHitchcock/FPVGateC5MK/pull/1)).
+
 ## Licence
 
 CC BY-NC-SA 4.0 for non-commercial use, the same as FPVGate. Commercial use

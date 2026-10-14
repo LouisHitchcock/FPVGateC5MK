@@ -1,27 +1,41 @@
-# C5MK 1.2.0: direct USB timing with RotorHazard
+# C5MK 1.2.1: steadier RSSI
 
-C5MK can now connect directly to the computer running RotorHazard over USB,
-without an ESP32-S3, Wi-Fi connection, FPVGate plugin or RH core changes.
+A receiver fix: readings no longer spike after hops, and a steady signal
+holds still instead of wandering. Thanks to RaceFPV, who found the cause
+([#1](https://github.com/LouisHitchcock/FPVGateC5MK/pull/1)).
 
-## What's new
+## What's changed
 
-- One C5 exposes eight native RH serial receivers with independent frequency
-  and EnterAt/ExitAt controls, live RSSI and standard Sensor Tuning capture.
-- RH's revision request selects USB timing mode automatically. The same
-  board-specific firmware retains the existing S3/UART receiver connection;
-  there is no separate USB-only image.
-- Crossing detection uses every successful scan sample. Passes are timed at
-  the midpoint of their highest RSSI plateau on the C5 clock and reported
-  through RH's API 35 serial-node protocol.
-- USB ownership does not take the radio from an active S3. Five seconds
-  without valid RH requests releases it. Invalid frames and stale samples
-  cannot complete an old crossing.
+- The C5 used to rewrite its fixed receive gain after every hop, even when it
+  was already set, and each rewrite briefly disturbed the receiver. It now
+  checks the gain first and writes it only if it has changed or been cleared.
+- Through FPVGate at about 1030 readings per second per pilot (XIAO
+  ESP32-C5, 8 Raceband pilots, VTX off): R1's largest false bump fell from
+  224 to 13.5 RSSI counts, and its spread from 24 to 3.9, the same as the
+  other seven channels.
+- A VTX on R6 read about 5 dB stronger and about three times steadier
+  (spread 14.1 to 5.2 counts).
+- On the C5-Zero's USB scanner, raw readings more than 6 dB over the noise
+  floor fell from 61 to 3 in about 97,000.
+- No change in rate, timing, gaps or the noise floor.
+- The build is pinned to pioarduino platform 55.03.35 (ESP-IDF 5.5.1)
+  instead of the moving "stable" release.
+
+## Recalibrate after updating
+
+A steady signal now reads about 3-6 dB higher than on 1.2.0 and earlier.
+EnterAt/ExitAt thresholds and gate calibrations made on older firmware will
+sit low: run auto-calibrate in FPVGate, or Sensor Tuning in RotorHazard,
+again after updating.
 
 ## Installing
 
 Choose `c5zero` for Waveshare ESP32-C5-Zero or `xiaoc5` for Seeed XIAO ESP32-C5.
 The files below are prefixed with those board names. Each board needs its
 matching firmware; the UART pins differ.
+
+A C5 already on 1.1.0 or 1.2.0 can update through FPVGate's C5 Receiver
+Firmware page over the UART link: 1.2.1 keeps the 1.1.0 partition layout.
 
 A C5 on 1.0 or earlier needs the full USB flash because 1.1.0 changed the
 partition layout. Rename the downloaded board-prefixed files to the names
@@ -31,35 +45,21 @@ below, or use the unprefixed files in `release/<board>/` at the release tag:
 esptool --chip esp32c5 --port <port> --baud 921600 write_flash --flash_mode dio --flash_freq 80m --flash_size 4MB 0x2000 bootloader.bin 0x8000 partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin
 ```
 
-1.2.0 retains the 1.1.0 partition layout. Existing 1.1.0 receivers can update
-through FPVGate's C5 Receiver Firmware page over the UART link. Close any RH
-or browser serial connection before a USB flash. Do not use RH's STM32 node
-updater on the C5.
+Close any RH or browser serial connection before a USB flash. Do not use RH's
+STM32 node updater on the C5.
 
-For direct USB, add the C5's port under **Advanced Settings > Hardware > Serial
-Ports** in RH and restart RH. Calibrate each enabled receiver in Sensor Tuning.
-The port is configured once; this release does not add automatic OS port
-registration or change RH's unplug/replug recovery. Don't use USB RH and an
-S3 to control the same receiver simultaneously.
-
-[USB setup and limitations](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.0/docs/USB_ROTORHAZARD.md)
-and [flashing instructions](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.0/release/README.md).
+[Flashing instructions](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.1/release/README.md),
+[USB setup for RotorHazard](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.1/docs/USB_ROTORHAZARD.md)
+and [the measurements](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.1/docs/RF_RESEARCH.md#3-post-hop-spikes).
 
 ## Validation and limitations
 
-- 160 USB protocol checks and four integration tests using stock RH's actual
-  serial-node client passed.
-- Existing meter, UART/node and reference-host suites passed: 60, 1201 and 48
-  checks respectively.
+- Meter, UART/node, reference-host and USB protocol suites passed: 60, 1201,
+  48 and 160 checks.
 - Both board firmware builds passed their SRAM guard checks.
-- Waveshare C5-Zero was flashed with the development version of this code:
-  eight R1-R8 receivers and live RSSI were verified through RH. The tester
-  then reported timing working in the local RH setup.
-- Physical XIAO USB testing is still pending. Eight-pilot RF detection,
-  unplug/replug behaviour and timing accuracy against video are not validated
-  by these checks.
-
-USB reports the existing C5 filtered RSSI, scaled to RH's valid 1-254 range.
-It does not add Widscan58's 255 ms median filter or send the full 1 kHz trace
-to Marshal. Only the latest pass per receiver is retained between host reads.
-Recalibrate thresholds for your receiver position and test before an event.
+- Tested on a Waveshare C5-Zero (gain 30) and on a XIAO ESP32-C5 behind a
+  XIAO S3 running FPVGate (gain 31), with and without a VTX on R6; updated
+  over the link and back.
+- Tested at gains 30 and 31 only. Direct USB to RotorHazard runs with the
+  change but the RSSI comparison there was inconclusive and is being
+  repeated.

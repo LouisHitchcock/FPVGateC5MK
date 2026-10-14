@@ -40,6 +40,7 @@ in [LICENSING.md](LICENSING.md) can be checked.
 | Band-power meter: LO 10 MHz below the pilot, DC removal, Hann-windowed 8-sample blocks mixed to 0 Hz, median-of-3 and EMA filter | O |
 | The pilot list, binary scan records, CRC-8, C5 timestamps and the UART protocol | O |
 | Passband, image rejection, retune timing and post-hop spikes | M (RF_RESEARCH.md) |
+| Rewriting the `force_rx_gain` force while it already holds disturbs the receiver (post-hop spikes, a wandering level on a steady carrier); writing only when `0x600A702C` shows the force off or on another index avoids it | Reported by RaceFPV in pull request #1. The released code is this project's own implementation, checked M (RF_RESEARCH.md section 3). The PR's extra AGC calls made no measurable difference and are not in the released code. |
 
 ## Not taken
 
