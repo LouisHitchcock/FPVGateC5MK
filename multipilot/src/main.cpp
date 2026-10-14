@@ -117,8 +117,8 @@ public:
     bool tune(int mhz, int gain) override {
         meter_ = &meter;
         radio::hop(mhz - cfg.offsetMhz);
-        // hop() can turn the AGC back on, so the lock is re-applied even
-        // when the index itself did not change.
+        // Always: forceGain only writes if the lock has gone, and the cached
+        // index can't tell whether it has.
         radio::forceGain(gain);
         appliedGain_ = gain;
         if (cfg.settleUs > 0) esp_rom_delay_us(cfg.settleUs);
@@ -134,9 +134,8 @@ public:
         esp_rom_delay_us(20);
     }
     // Scan mode: the PLL is settled when hopNoWait returns (measured with
-    // hopprof, docs/RF_RESEARCH.md), so no settle delay. The gain lock is
-    // checked after every hop and rewritten only if a wake or a full retune
-    // turned the AGC back on.
+    // hopprof, docs/RF_RESEARCH.md), so no settle delay. The gain is checked
+    // after each hop (one register read) and written only if the lock went.
     void hop(int mhz, int gain) override {
         meter_ = &nodeScanMeter;
         uint32_t c0 = esp_cpu_get_cycle_count();
@@ -198,8 +197,8 @@ bool dumpLooksLive(const char* label, char* out, size_t cap) {
     mp::MeterResult r;
     int64_t t;
     bool fb;
-    radio::hop(cfg.pilots[0] - cfg.offsetMhz);
     radio::forceGain(cfg.gain);
+    radio::hop(cfg.pilots[0] - cfg.offsetMhz);
     esp_rom_delay_us(2000);
     bool ok = dump::capture(cfg.n, dump::Mode::Stock, &t, &fb);
     if (ok) meter.measure(dump::words(), cfg.gain, r);

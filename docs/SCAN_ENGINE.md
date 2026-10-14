@@ -28,7 +28,8 @@ the host.
 1. `radio::hopNoWait(pilot - 10 MHz, skip = cfg.nodeHopSkip)`: the PLL
    steps without the fixed 300 us wait (see RF_RESEARCH.md). Skip mask 3 also
    leaves out the 5G clock and frequency-memory updates. **68 us.**
-2. `radio::forceGain(gain)`: one register write.
+2. `radio::forceGain(gain)`: one register read; a write only if the gain
+   lock has gone (see RF_RESEARCH.md section 3).
 3. `dump::capture(256, Direct)`: direct-triggered I/Q capture, 256 samples =
    3.2 us of RF at 80 MS/s, with sentinel and guard checks. **10 us.** The C5
    timestamp is the middle of the capture.

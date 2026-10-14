@@ -95,9 +95,45 @@ About 1 in 25 captures in the settling runs read ~30 dB high. `hopspikes
 The spikes read 12-25 dB above normal, with no clipping and the gain field
 unchanged in every sample. They come from hopping in general, not from
 removing the wait (10 against 4 is within chance), and only appear with a
-signal present. The cause is unknown; a raw capture of a spike would show
-it. The median-of-3 filter removes isolated spikes, and at ~1% they don't
-affect laps.
+signal present. The median-of-3 filter removes isolated spikes, and at ~1%
+they don't affect laps.
+
+**Cause: rewriting the gain force.** Up to firmware 1.2.0, `forceGain` called
+`force_rx_gain` after every hop even when the force was already in place.
+RaceFPV pointed out that rewriting a force that already holds disturbs the
+receiver for a moment. From the next release, `forceGain` reads `0x600A702C`
+and writes only if the force bit is clear or the index differs.
+
+C5-Zero, gain 30, USB scanner (n=2048, raw readings), comparing 1.2.0 with
+the change (carrier-on rows from a test build with the same `forceGain`):
+
+| Test | 1.2.0 | With the change |
+|---|---|---|
+| Carrier off, 8-pilot scan, readings > median + 6 dB | 61 / 98,456 | 3 / 96,872 |
+| Carrier on (R6), one channel, raw sd | 2.20 dB, 2,550 clipped samples | 0.10 dB, none clipped |
+| Carrier on, `hopspikes` median, hopNoWait against no hop | 22.3 / 24.4 dB | 27.6 / 27.8 dB |
+| Carrier on, `hopspikes` readings > median + 6 dB, hopNoWait | 2 / 300 | 0 / 300 |
+| Carrier on, R6 raw sd in the 8-pilot scan | 1.62 dB | 0.24 dB |
+
+XIAO ESP32-C5 through FPVGate, node scan mode (8 Raceband pilots, n=256,
+gain 31), filtered RSSI (0-1023, about 16 counts per dB) sampled from the
+gate's event stream at 10 Hz:
+
+| Test | 1.1.0 (same radio code as 1.2.0) | With the change |
+|---|---|---|
+| Rate per pilot, gaps, drops, bad records | 1034 Hz, 0, 0, 0 | 1037 Hz, 0, 0, 0 |
+| Carrier off, R1 sd / largest excursion over median | 24.0 / 224 | 3.9 / 13.5 |
+| Carrier off, R2-R8 sd | 3.6-4.2 | 3.7-3.9 |
+| Carrier on (R6), R6 median / sd / largest excursion | 544 / 14.1 / 82 | 627 / 5.2 / 19 |
+
+R1 is the slot after the cycle's longest hop (R8 down to R1), which is
+where the old rewrite disturbed the receiver most; its excursions came and
+went between runs. Noise excluding spikes, the visit time and the rate per
+pilot were the same on both. With the old code a steady carrier read 3-6 dB
+low and wandered, so readings and calibrations made before this change sit
+lower than those made after it. Also calling `phy_disable_agc` and
+`phy_rfagc_disable` made no measurable difference beyond this, so the
+firmware doesn't.
 
 ## 4. Passband and image rejection
 
@@ -201,8 +237,8 @@ DC from every capture. On this evidence the two boards are interchangeable.
 
 ## 9. Known limitations and open questions
 
-1. **Post-hop spikes** (section 3): ~1% of captures, carrier only, cause
-   unknown. Hidden by the median-of-3.
+1. **Post-hop spikes** (section 3): caused by rewriting the gain force;
+   fixed after 1.2.0. Measured at gains 30 and 31 only.
 2. **Skip mask 3 and settle-free captures** were carrier-checked only on R1
    from 37 MHz below; not yet across the band or on the R8 to R1 jump.
 3. **Image rejection ~18 dB** at gain 30: ghosts are possible on ~20 MHz
