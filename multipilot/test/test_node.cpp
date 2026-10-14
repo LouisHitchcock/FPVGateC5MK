@@ -176,7 +176,7 @@ int main() {
     // ---- boot and Q ----
     {
         Rig g;
-        CHECK(g.io.out.size() == 1 && g.io.out[0].rfind("S,0,30,ERR_FREQ,2*", 0) == 0);
+        CHECK(g.io.out.size() == 1 && g.io.out[0].rfind("S,0,30,ERR_FREQ,3,?,?*", 0) == 0);
         size_t n = g.io.out.size();
         g.rx(frame("Q"));
         CHECK(g.io.out.size() == n + 1 && g.io.out.back().rfind("S,", 0) == 0);   // immediately
@@ -190,7 +190,7 @@ int main() {
         Rig g;
         g.rx(frame("F,5180"));
         CHECK(g.core.state() == node::State::Tuning);
-        CHECK(g.io.out.back().rfind("S,5180,30,TUNING,2*", 0) == 0);
+        CHECK(g.io.out.back().rfind("S,5180,30,TUNING,3,", 0) == 0);
         g.run(300);
         CHECK(g.core.state() == node::State::Ok && g.radio.tunedMhz == 5180);
         g.rx(frame("F,5885"));
@@ -203,7 +203,7 @@ int main() {
         size_t mark = g.io.out.size();
         g.rx(frame("F,5179"));
         CHECK(g.core.state() == node::State::ErrFreq);
-        CHECK(g.io.out.back().rfind("S,5179,30,ERR_FREQ,2*", 0) == 0);
+        CHECK(g.io.out.back().rfind("S,5179,30,ERR_FREQ,3,", 0) == 0);
         g.run(20000);
         CHECK(g.countPrefix("R,", mark) == 0);
         g.rx(frame("F,5918"));
@@ -358,7 +358,7 @@ int main() {
         for (int i = 0; i < 8; ++i) g.radio.slotLevel[i] = -2.8f + 4 * i;
         g.rx(frame("P,5658,5695,5732,5769,5806,5843,5880,5917"));
         CHECK(g.core.state() == node::State::Scan && g.core.scanMask() == 0xFF);
-        CHECK(g.io.out.back().rfind("S,0,30,SCAN,2*", 0) == 0);
+        CHECK(g.io.out.back().rfind("S,0,30,SCAN,3,", 0) == 0);
         size_t lines = g.io.out.size();
         for (int i = 0; i < 100; ++i) g.core.step(g.now += 900);
         CHECK(g.io.recs.size() == 100 && g.io.badRecs == 0);
@@ -436,6 +436,141 @@ int main() {
         CHECK(g.io.recs.size() == recs && g.countPrefix("R,", mark) >= 9);
     }
 
+    // ---- firmware update (fw 3) ----
+    {
+        // The image in memory, checked like the real port: size and SHA-256
+        // are compared at the end (here a byte-sum stands in for the hash).
+        struct FakeUpdate : node::UpdatePort {
+            uint32_t size = 0;
+            std::string image;
+            int begins = 0, aborts = 0, restarts = 0;
+            bool failWrite = false, finished = false;
+            bool begin(uint32_t s, const uint8_t*) override { ++begins, size = s, image.clear(); return true; }
+            bool write(const uint8_t* d, size_t n) override {
+                if (failWrite) return false;
+                image.append((const char*)d, n);
+                return true;
+            }
+            bool finish() override { return finished = image.size() == size; }
+            void abort() override { ++aborts, image.clear(); }
+            void restart() override { ++restarts; }
+        };
+        // One chunk as the S3 frames it.
+        auto chunk = [](uint32_t offset, const std::string& data) {
+            std::string pl = "W";
+            for (int b = 0; b < 4; ++b) pl += (char)(offset >> (8 * b));
+            pl += data;
+            std::string f(1, (char)node::kChunkSync);
+            f += (char)pl.size();
+            f += pl;
+            std::string crcIn(1, (char)pl.size());
+            crcIn += pl;
+            f += (char)node::crc8((const uint8_t*)crcIn.data(), crcIn.size());
+            return f;
+        };
+        const std::string sha(64, 'a');
+        std::string image;
+        for (int i = 0; i < 1000; ++i) image += (char)(i * 7 + 3);   // every byte value, '\n' and 0xA5/0xA6 too
+
+        FakeRadio radio;
+        FakeIo io;
+        FakeUpdate up;
+        node::Core core(radio, io, &up);
+        core.setIdentity("1.0.0", "c5zero");
+        core.boot(0, 30, true);
+        CHECK(io.out.back().rfind("S,0,30,ERR_FREQ,3,1.0.0,c5zero*", 0) == 0);
+        auto rx = [&](const std::string& b) { for (char c : b) core.onByte(c, 0); };
+        rx(frame("P,5658,5695"));
+        CHECK(core.state() == node::State::Scan);
+
+        // Bad arguments are refused without leaving scan mode.
+        rx(frame("U,1000,xyz"));
+        CHECK(io.out.back().rfind("u,err,args", 0) == 0 && core.state() == node::State::Scan);
+
+        rx(frame(("U,1000," + sha).c_str()));
+        CHECK(up.begins == 1 && io.out.back().rfind("u,ready", 0) == 0);
+        CHECK(core.state() == node::State::Update && core.scanMask() == 0);
+        bool sawUpdate = false;
+        for (auto& l : io.out) sawUpdate |= l.rfind("S,0,30,UPDATE,3,", 0) == 0;
+        CHECK(sawUpdate);
+        // No retuning while updating; Q still answers.
+        rx(frame("P,5658"));
+        CHECK(core.state() == node::State::Update);
+        rx(frame("Q"));
+        CHECK(io.out.back().rfind("S,0,30,UPDATE", 0) == 0);
+
+        // In order, a lost ack (repeat), a corrupt chunk and a skipped offset.
+        uint32_t off = 0;
+        rx(chunk(0, image.substr(0, 250)));
+        CHECK(io.out.back().rfind("u,ack,250*", 0) == 0);
+        rx(chunk(0, image.substr(0, 250)));   // repeat: acknowledged, not written twice
+        CHECK(io.out.back().rfind("u,ack,250*", 0) == 0 && up.image.size() == 250);
+        std::string bad = chunk(250, image.substr(250, 250));
+        bad[10] ^= 0x40;
+        size_t before = io.out.size();
+        rx(bad);
+        CHECK(io.out.size() == before && core.badChunks == 1);   // dropped silently; the S3 times out and resends
+        rx(chunk(500, image.substr(500, 250)));   // ahead of where it is: told where to resume
+        CHECK(io.out.back().rfind("u,ack,250*", 0) == 0 && up.image.size() == 250);
+        for (off = 250; off < image.size(); off += 250) rx(chunk(off, image.substr(off, 250)));
+        CHECK(io.out.back().rfind("u,ack,1000*", 0) == 0 && up.image == image && core.chunks == 4);
+
+        rx(frame("E"));
+        CHECK(up.finished && up.restarts == 1 && io.out.back().rfind("u,done", 0) == 0);
+
+        // A short image fails the check and does not restart.
+        FakeIo io2;
+        FakeUpdate up2;
+        node::Core c2(radio, io2, &up2);
+        c2.boot(0, 30, true);
+        auto rx2 = [&](const std::string& b) { for (char c : b) c2.onByte(c, 0); };
+        rx2(frame(("U,1000," + sha).c_str()));
+        rx2(chunk(0, image.substr(0, 250)));
+        // Errors are followed by a status line, so look back for them.
+        auto saw = [&](const char* prefix) {
+            for (auto& l : io2.out)
+                if (l.rfind(prefix, 0) == 0) return true;
+            return false;
+        };
+        rx2(frame("E"));
+        CHECK(saw("u,err,verify") && up2.restarts == 0 && up2.aborts == 1);
+        CHECK(c2.state() == node::State::NoFreq && io2.out.back().rfind("S,0,30,ERR_FREQ", 0) == 0);
+
+        // Abandoned by the S3, and abandoned by silence.
+        rx2(frame(("U,1000," + sha).c_str()));
+        rx2(frame("A"));
+        CHECK(saw("u,err,aborted") && up2.aborts == 2);
+        rx2(frame(("U,1000," + sha).c_str()));
+        c2.step(node::kUpdateIdleUs + 1);
+        CHECK(saw("u,err,timeout") && up2.aborts == 3 && c2.state() == node::State::NoFreq);
+
+        // A write failure ends it.
+        rx2(frame(("U,1000," + sha).c_str()));
+        up2.failWrite = true;
+        rx2(chunk(0, image.substr(0, 250)));
+        CHECK(saw("u,err,write") && c2.state() == node::State::NoFreq);
+
+        // Without an update port, U is refused.
+        Rig g;
+        g.rx(frame(("U,1000," + sha).c_str()));
+        CHECK(g.io.out.back().rfind("u,err,unsupported", 0) == 0 && g.core.state() == node::State::NoFreq);
+    }
+
+    {
+        static unsigned callbacks = 0;
+        callbacks = 0;
+        Rig g;
+        g.core.onScanSample = [](unsigned slot, uint16_t value, uint32_t) {
+            ++callbacks;
+            CHECK(slot < 2 && value <= 1023);
+        };
+        g.rx(frame("P,5658,5695"));
+        for (unsigned i = 0; i < 20; ++i) g.core.step(i * 1000);
+        CHECK(callbacks == 40);  // full-rate timing samples, not every 16th cycle
+        g.radio.failMeasure = true;
+        g.core.step(21000);
+        CHECK(callbacks == 40);  // failed captures never create timing samples
+    }
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

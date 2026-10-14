@@ -1,0 +1,9 @@
+# Two app slots, so the S3 can send a new image over the link while the
+# current one runs (docs/LINK_PROTOCOL.md, "Firmware update"). nvs keeps the
+# offset and size of the single-app layout, so the saved gain survives.
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x6000
+otadata,  data, ota,     0xf000,   0x2000
+phy_init, data, phy,     0x11000,  0x1000
+ota_0,    app,  ota_0,   0x20000,  0x1E0000
+ota_1,    app,  ota_1,   0x200000, 0x1E0000

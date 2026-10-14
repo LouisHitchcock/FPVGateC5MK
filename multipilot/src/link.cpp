@@ -15,6 +15,8 @@ char line[160];
 size_t lineLen = 0;
 bool lineOverflow = false;
 uint32_t dropCount = 0;
+bool binaryMode = false;
+bool (*byteHandler)(uint8_t) = nullptr;
 }  // namespace
 
 void begin() {
@@ -25,6 +27,7 @@ void begin() {
 }
 
 bool send(uint8_t type, const void* payload, uint16_t len, int waitMs) {
+    if (binaryMode) return false;
     size_t n = mp::frameEncode(type, payload, len, txBuf, sizeof txBuf);
     if (!n) return false;
     // The driver copies the whole frame into its ring buffer or nothing.
@@ -49,6 +52,7 @@ void say(const char* fmt, ...) {
 const char* pollLine() {
     uint8_t c;
     while (usb_serial_jtag_read_bytes(&c, 1, 0) == 1) {
+        if (byteHandler && (binaryMode || (!lineLen && !lineOverflow)) && byteHandler(c)) continue;
         if (c == '\r' || c == '\n') {
             if (lineLen == 0 && !lineOverflow) continue;
             bool bad = lineOverflow;
@@ -65,5 +69,19 @@ const char* pollLine() {
 }
 
 uint32_t drops() { return dropCount; }
+
+void setByteHandler(bool (*handler)(uint8_t)) { byteHandler = handler; }
+
+void setBinaryMode(bool enabled) {
+    binaryMode = enabled;
+    lineLen = 0;
+    lineOverflow = false;
+}
+
+bool sendRaw(const uint8_t* data, size_t size) {
+    if (usb_serial_jtag_write_bytes(data, size, pdMS_TO_TICKS(20)) == (int)size) return true;
+    ++dropCount;
+    return false;
+}
 
 }  // namespace hostlink

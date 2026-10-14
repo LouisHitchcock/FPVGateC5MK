@@ -9,6 +9,8 @@ FLAGS="-std=c++14 -O1 -Wall -Wextra -I src -I ../host/c5host"
 g++ $FLAGS src/meter.cpp src/frame.cpp test/test_mp.cpp -o .pio/test/test_mp.exe
 g++ $FLAGS src/meter.cpp src/node_core.cpp test/test_node.cpp -o .pio/test/test_node.exe
 g++ $FLAGS src/meter.cpp src/node_core.cpp ../host/c5host/c5host.cpp test/test_host.cpp -o .pio/test/test_host.exe
+g++ $FLAGS src/rh_usb.cpp test/test_rh_usb.cpp -o .pio/test/test_rh_usb.exe
 ./.pio/test/test_mp.exe
 ./.pio/test/test_node.exe
 ./.pio/test/test_host.exe
+./.pio/test/test_rh_usb.exe

@@ -8,7 +8,8 @@
 //   S3 -> C5:  F,<MHz>   G,<gain>   Q
 //              P,<MHz>,...                     up to 8 slots, 0 = slot off (fw 2)
 //   C5 -> S3:  R,<seq u8>,<rssi 0-1023>       about 1 kHz, only in OK
-//              S,<MHz>,<gain>,<state>,<fw>     after every F/G/P/Q, and a heartbeat
+//              S,<MHz>,<gain>,<state>,<fw>,<version>,<board>
+//                                              after every F/G/P/Q, and a heartbeat
 //
 // Scan mode (P): the C5 cycles through the slots itself, one fast retune and
 // one short dump per slot, and sends one binary record per cycle instead of
@@ -19,6 +20,19 @@
 //   mask, in slot order: value u16 (bits 0-9 rssi, bit 15 dump failed), dt
 //   u16 (us after t0). t0 and t0 + dt are the C5's clock at the middle of
 //   each slot's dump. All little-endian. Status shows MHz 0 and SCAN.
+//
+// Firmware update (fw 3): the S3 sends a new application image, which goes
+// into the spare app partition. Chunks are binary, one at a time: the next
+// is sent only once the last is acknowledged, so the C5 is never receiving
+// while it writes flash.
+//   S3 -> C5:  U,<bytes>,<sha256 hex>          start; the C5 erases, then u,ready
+//              0xA6, len, payload[len], crc8(len, payload)
+//                payload: 'W', offset u32 LE, data          one chunk
+//              E                               check the image and switch to it
+//              A                               abandon the update
+//   C5 -> S3:  u,ready   u,ack,<next offset>   u,done (then restarts)
+//              u,err,<reason>
+// Status shows MHz 0 and UPDATE while an update is open.
 #ifndef MP_NODE_CORE_H
 #define MP_NODE_CORE_H
 
@@ -35,10 +49,14 @@ constexpr size_t kMaxLine = 96;
 constexpr uint32_t kSampleUs = 1000;            // 1 kHz
 constexpr uint32_t kHeartbeatUs = 900000;       // the protocol asks for one every 1 s or less
 constexpr int kFailsForErrRf = 5;               // consecutive failed dumps
-constexpr const char* kFirmware = "2";          // 2: scan mode (P)
+constexpr const char* kFirmware = "3";          // 2: scan mode (P), 3: update (U)
 constexpr int kMaxSlots = 8;
 constexpr uint8_t kRecordSync = 0xA5;
 constexpr char kRecordScan = 'M';
+constexpr uint8_t kChunkSync = 0xA6;
+constexpr char kChunkWrite = 'W';
+constexpr size_t kChunkMax = 250;               // data bytes in one chunk
+constexpr uint32_t kUpdateIdleUs = 30000000;    // no chunk for this long abandons it
 constexpr uint16_t kValueFailed = 0x8000;
 constexpr uint8_t kViewEvery = 16;              // scan cycles per onSample() pass (power of 2)
 
@@ -87,12 +105,29 @@ public:
     virtual bool rxPending() = 0;
 };
 
-enum class State : uint8_t { NoFreq, Tuning, Ok, ErrFreq, ErrRf, Scan };
+// Where an update is written. Optional: without one, U is rejected.
+class UpdatePort {
+public:
+    virtual ~UpdatePort() {}
+    // Prepare for an image of this size (erases; slow).
+    virtual bool begin(uint32_t size, const uint8_t sha256[32]) = 0;
+    // The next bytes of the image, in order.
+    virtual bool write(const uint8_t* data, size_t n) = 0;
+    // Check the size and SHA-256, and boot the new image next time.
+    virtual bool finish() = 0;
+    virtual void abort() = 0;
+    // Called once u,done has been written.
+    virtual void restart() = 0;
+};
+
+enum class State : uint8_t { NoFreq, Tuning, Ok, ErrFreq, ErrRf, Scan, Update };
 const char* stateName(State s);
 
 class Core {
 public:
-    Core(RadioPort& radio, Io& io) : radio_(radio), io_(io) {}
+    Core(RadioPort& radio, Io& io, UpdatePort* update = nullptr) : radio_(radio), io_(io), update_(update) {}
+    // Reported in every status line, e.g. "1.0.0" and "c5zero".
+    void setIdentity(const char* version, const char* board);
     // After the radio is up. radioOk false reports ERR_RF.
     void boot(uint32_t nowUs, int gain, bool radioOk);
     // A byte from the S3.
@@ -117,6 +152,8 @@ public:
     // Called for every R sample sent, and in scan mode for each slot every
     // kViewEvery cycles (for the USB view).
     void (*onSample)(int mhz, float rawDb, float filtDb, uint16_t rssi, uint32_t nowUs) = nullptr;
+    // Optional timing consumer, every successful slot capture (not the decimated USB view).
+    void (*onScanSample)(unsigned slot, uint16_t rssi, uint32_t nowUs) = nullptr;
 
     uint8_t scanMask() const { return scanMask_; }
 
@@ -124,10 +161,20 @@ public:
     uint32_t samples = 0, staleDropped = 0, failedDumps = 0, statuses = 0, commands = 0, rejected = 0;
     // Scan mode: records sent, cycles cut short by a waiting command.
     uint32_t cycles = 0, abortedCycles = 0;
+    // Update chunks written, and chunks dropped for a bad checksum.
+    uint32_t chunks = 0, badChunks = 0;
 
 private:
     RadioPort& radio_;
     Io& io_;
+    UpdatePort* update_;
+    char version_[24] = "?";
+    char board_[16] = "?";
+    // An open update: image size, bytes written, last chunk time.
+    uint32_t updateSize_ = 0, updateDone_ = 0, updateLastUs_ = 0;
+    // A binary chunk being received: 0 none, 1 length next, 2 payload.
+    uint8_t chunkState_ = 0, chunkLen_ = 0, chunkPos_ = 0;
+    uint8_t chunk_[kChunkMax + 8];
     State state_ = State::NoFreq;
     int mhz_ = 0;
     int gain_ = 30;
@@ -144,6 +191,9 @@ private:
     mp::PilotFilter scanFilt_[kMaxSlots];
 
     bool parseSlots(const char* s);
+    void startUpdate(const char* args, uint32_t nowUs);
+    void onChunk(uint32_t nowUs);
+    void endUpdate(bool finish, uint32_t nowUs);
     void scanCycle(uint32_t nowUs);
     void status(uint32_t nowUs);
     void send(const char* payload);

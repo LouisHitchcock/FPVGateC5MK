@@ -1,7 +1,8 @@
 idf_component_register(
-    SRCS "main.cpp" "dump.cpp" "radio.cpp" "meter.cpp" "frame.cpp" "link.cpp" "node.cpp" "node_core.cpp"
+    SRCS "main.cpp" "dump.cpp" "radio.cpp" "meter.cpp" "frame.cpp" "link.cpp" "node.cpp" "node_core.cpp" "rh_usb.cpp"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES esp_wifi esp_phy nvs_flash esp_event esp_timer heap esp_driver_usb_serial_jtag esp_driver_uart)
+    PRIV_REQUIRES esp_wifi esp_phy nvs_flash esp_event esp_timer heap esp_driver_usb_serial_jtag esp_driver_uart
+                  app_update esp_app_format mbedtls)
 
 # Per-board FPVGate link pins (platformio.ini board_build.cmake_extra_args);
 # PlatformIO's build_flags don't reach these sources in an ESP-IDF build.

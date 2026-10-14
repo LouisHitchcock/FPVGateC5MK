@@ -28,19 +28,57 @@ bytes, bad checksums and lower-case hex (`node` console: `lines ok/bad/long`).
 | `G,<gain>` | Forced receive gain index, 0 to the C5's limit (89 on chip v1.0). Higher is rejected and the old gain kept. Applies in both modes and is saved across reboots. |
 | `Q` | Status request. |
 | `F,<MHz>` | Single-frequency mode on one frequency (the firmware 1 protocol). Leaves scan mode. 5180-5917 or the C5 reports `ERR_FREQ`. |
+| `U,<bytes>,<sha256>` `E` `A` | **Firmware update** (firmware 3), see below. |
 
 ### C5 to host
 
 | Line | Meaning |
 |---|---|
-| `S,<MHz>,<gain>,<state>,<fw>` | Status: after every F/G/P/Q, and a heartbeat every 900 ms. In scan mode MHz is 0 and state is `SCAN`. |
+| `S,<MHz>,<gain>,<state>,<fw>,<version>,<board>` | Status: after every F/G/P/Q, and a heartbeat every 900 ms. In scan mode MHz is 0 and state is `SCAN`. `<version>` and `<board>` (e.g. `1.1.0`, `c5zero`) are firmware 3; hosts reading four fields carry on working. |
 | `R,<seq u8>,<rssi 0-1023>` | Single-frequency mode only: one reading, ~1 kHz. |
+| `u,...` | Firmware update replies (firmware 3), see below. |
 
 States: `SCAN` (scanning the `P` list), `ERR_FREQ` (no or invalid frequency;
 also at boot), `ERR_RF` (radio failed at boot, or repeated failed captures:
-5 in a row in single-frequency mode, 40 in scan mode), and `TUNING`/`OK`
-(single-frequency mode). Firmware `1` = single-frequency protocol only,
-`2` = scan mode.
+5 in a row in single-frequency mode, 40 in scan mode), `TUNING`/`OK`
+(single-frequency mode), and `UPDATE` (an update is open; no scanning).
+Firmware `1` = single-frequency protocol only, `2` = scan mode, `3` =
+firmware updates over the link.
+
+## Firmware update (firmware 3)
+
+The host sends a new application image over the same two wires; the C5
+writes it into its spare app slot. One chunk at a time: the next is sent only
+once the last is acknowledged, so the C5 is never receiving while it writes
+flash.
+
+| Step | Host to C5 | C5 replies |
+|---|---|---|
+| Start | `U,<bytes>,<sha256 as 64 hex digits>` | `u,ready` once the slot is erased (a few seconds), or `u,err,<reason>` |
+| Each chunk | `0xA6, len, 'W', offset u32 LE, data, crc8` (len = 5 + data, data up to 250 bytes, crc8 as for scan records over len and the payload) | `u,ack,<next offset>` |
+| Finish | `E` | `u,done`, then it restarts into the new image; or `u,err,verify` |
+| Abandon | `A` | `u,err,aborted` |
+
+A chunk at the wrong offset is answered with the offset wanted, and a repeat
+of one already written (its ack was lost) is acknowledged again, so the host
+just resends from the offset in the last ack. A chunk with a bad CRC gets no
+reply: resend it after a timeout (FPVGate: 300 ms, 10 tries). 30 s with no
+chunk abandons the update. While it is open, `F`, `P` and `G` are refused.
+
+On `E` the C5 checks the size and SHA-256, and ESP-IDF checks the image,
+before switching slot. The new image runs on trial: it confirms itself on
+its first valid command from the host (or the USB console), and if it hasn't
+after 60 s it restarts and the bootloader goes back to the previous image.
+So a host knows an update worked when the C5 reports the new version **and**
+scans the slot list sent after the restart.
+
+The image's version is `<version>+<board>` (ESP-IDF app description, byte 48
+of the `.bin`). The boards' link pins differ, so a host must only send an
+image whose board matches the `<board>` the C5 reports.
+
+Releases put each board's application image at
+`release/<board>/firmware.bin` in the repository at the release tag, which
+`raw.githubusercontent.com` serves to browsers (FPVGate's update page).
 
 ## Scan records (firmware 2)
 

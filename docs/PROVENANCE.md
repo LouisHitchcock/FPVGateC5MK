@@ -43,6 +43,11 @@ in [LICENSING.md](LICENSING.md) can be checked.
 
 ## Not taken
 
+The direct RH USB endpoint is independently implemented against RotorHazard's
+public API 35 serial-client layout (`RHInterface.py` and `serial_node.py`).
+Widscan58's setup documentation was consulted for the native eight-seat USB
+approach; its GPL firmware implementation was not copied or adapted.
+
 - The research side also noted an optional analog filter adjustment. It isn't
   used.
 - Nothing about the native AGC is relied on: the firmware forces a fixed gain.

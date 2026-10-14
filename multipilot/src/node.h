@@ -16,11 +16,16 @@ void poll();
 // readings for the USB dashboard.
 void step();
 bool active();
+bool rhUsbActive();
 // Leaving node mode drops the frequency (status ERR_FREQ, MHz 0) so the
 // scanner can use the radio; the S3's next F command takes it back.
 void deactivate();
 // USB console: "node ..." (args may be null).
 void console(char* args);
+// A new image from an update runs on trial and is rolled back unless this is
+// called within a minute: done on the first valid command from the S3 or the
+// USB console.
+void confirmImage();
 // A line for the USB status page.
 void describe(char* out, size_t cap);
 

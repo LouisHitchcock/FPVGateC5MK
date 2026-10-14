@@ -79,6 +79,7 @@ const char* stateName(State s) {
         case State::Ok: return "OK";
         case State::ErrRf: return "ERR_RF";
         case State::Scan: return "SCAN";
+        case State::Update: return "UPDATE";
         case State::ErrFreq:
         case State::NoFreq:
         default: return "ERR_FREQ";   // no valid frequency (MHz 0 when none was ever set)
@@ -98,21 +99,67 @@ static bool parseUint(const char* s, int* out) {
     return true;
 }
 
+void Core::setIdentity(const char* version, const char* board) {
+    snprintf(version_, sizeof version_, "%s", version);
+    snprintf(board_, sizeof board_, "%s", board);
+}
+
 void Core::boot(uint32_t nowUs, int gain, bool radioOk) {
     gain_ = gain;
     state_ = radioOk ? State::NoFreq : State::ErrRf;
     status(nowUs);
 }
 
-void Core::onByte(char c, uint32_t nowUs) {
-    if (const char* p = reader.feed(c)) handle(p, nowUs);
+// Lines and update chunks share the input: a chunk starts with a byte no
+// line contains, and its payload never reaches the line reader.
+void Core::onByte(char ch, uint32_t nowUs) {
+    const uint8_t c = (uint8_t)ch;
+    if (chunkState_ == 1) {
+        if (c < 5 || c > kChunkMax + 5) {
+            chunkState_ = 0;
+            ++badChunks;
+            return;
+        }
+        chunk_[0] = c;   // the CRC covers the length too
+        chunkLen_ = c;
+        chunkPos_ = 0;
+        chunkState_ = 2;
+        return;
+    }
+    if (chunkState_ == 2) {
+        if (chunkPos_ < chunkLen_) {
+            chunk_[1 + chunkPos_++] = c;
+            return;
+        }
+        chunkState_ = 0;
+        if (crc8(chunk_, chunkLen_ + 1u) == c) onChunk(nowUs);
+        else ++badChunks;
+        return;
+    }
+    if (c == kChunkSync) {
+        chunkState_ = 1;
+        return;
+    }
+    if (const char* p = reader.feed(ch)) handle(p, nowUs);
 }
 
 void Core::handle(const char* p, uint32_t nowUs) {
     ++commands;
     int v;
+    const bool updateCmd = (p[0] == 'U' && p[1] == ',') || !strcmp(p, "E") || !strcmp(p, "A");
+    if (state_ == State::Update && !updateCmd && strcmp(p, "Q") != 0) {
+        ++rejected;   // no retuning while an update is open
+        status(nowUs);
+        return;
+    }
     if (!strcmp(p, "Q")) {
         status(nowUs);
+    } else if (p[0] == 'U' && p[1] == ',') {
+        startUpdate(p + 2, nowUs);
+    } else if (!strcmp(p, "E")) {
+        endUpdate(true, nowUs);
+    } else if (!strcmp(p, "A")) {
+        endUpdate(false, nowUs);
     } else if (p[0] == 'F' && p[1] == ',' && parseUint(p + 2, &v)) {
         mhz_ = v;
         scanMask_ = 0;
@@ -179,6 +226,106 @@ bool Core::parseSlots(const char* s) {
     return true;
 }
 
+static int hexNibble(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+// "<bytes>,<sha256 as 64 hex digits>"
+void Core::startUpdate(const char* s, uint32_t nowUs) {
+    uint32_t size = 0;
+    int digits = 0;
+    for (; *s >= '0' && *s <= '9' && digits < 8; ++s, ++digits) size = size * 10 + (uint32_t)(*s - '0');
+    uint8_t sha[32];
+    bool ok = digits > 0 && size > 0 && *s == ',';
+    if (ok) {
+        ++s;
+        for (int i = 0; i < 32 && ok; ++i) {
+            int h = hexNibble(s[2 * i]), l = h < 0 ? -1 : hexNibble(s[2 * i + 1]);
+            if (l < 0) ok = false;
+            else sha[i] = (uint8_t)(h * 16 + l);
+        }
+        ok = ok && s[64] == 0;
+    }
+    if (!update_ || !ok) {
+        ++rejected;
+        send(update_ ? "u,err,args" : "u,err,unsupported");
+        return;
+    }
+    if (state_ == State::Update) update_->abort();   // the S3 started again
+    scanMask_ = 0;
+    mhz_ = 0;
+    needTune_ = needGain_ = false;
+    state_ = State::Update;
+    status(nowUs);
+    if (!update_->begin(size, sha)) {
+        state_ = State::NoFreq;
+        send("u,err,begin");
+        status(nowUs);
+        return;
+    }
+    updateSize_ = size;
+    updateDone_ = 0;
+    updateLastUs_ = nowUs;
+    send("u,ready");
+}
+
+// A chunk at the next offset is written. A repeat of one already written
+// (its acknowledgement was lost) is acknowledged again; any other offset is
+// answered with the one wanted, and the S3 carries on from there.
+void Core::onChunk(uint32_t nowUs) {
+    const uint8_t* pl = chunk_ + 1;
+    const size_t n = chunkLen_;
+    if (state_ != State::Update || pl[0] != (uint8_t)kChunkWrite) {
+        ++badChunks;
+        return;
+    }
+    uint32_t offset;
+    memcpy(&offset, pl + 1, 4);   // little-endian on both chips and the PC
+    const size_t len = n - 5;
+    if (offset == updateDone_ && len && len <= updateSize_ - updateDone_) {
+        if (!update_->write(pl + 5, len)) {
+            update_->abort();
+            state_ = State::NoFreq;
+            send("u,err,write");
+            status(nowUs);
+            return;
+        }
+        updateDone_ += (uint32_t)len;
+        ++chunks;
+    }
+    updateLastUs_ = nowUs;
+    char reply[24];
+    snprintf(reply, sizeof reply, "u,ack,%lu", (unsigned long)updateDone_);
+    send(reply);
+}
+
+void Core::endUpdate(bool finish, uint32_t nowUs) {
+    if (state_ != State::Update) {
+        ++rejected;
+        send("u,err,idle");
+        return;
+    }
+    state_ = State::NoFreq;
+    if (!finish) {
+        update_->abort();
+        send("u,err,aborted");
+        status(nowUs);
+        return;
+    }
+    // finish() cleans up after itself when the image is bad.
+    if (updateDone_ != updateSize_ || !update_->finish()) {
+        if (updateDone_ != updateSize_) update_->abort();
+        send("u,err,verify");
+        status(nowUs);
+        return;
+    }
+    send("u,done");
+    update_->restart();
+}
+
 // One pass over the slots, one record. A command waiting at the start skips
 // the cycle so it is handled first. One arriving part way through waits for
 // the end of the cycle (about 1 ms): the record is still for the old slot
@@ -225,6 +372,7 @@ void Core::scanCycle(uint32_t nowUs) {
         pl[k++] = (uint8_t)dt;
         pl[k++] = (uint8_t)(dt >> 8);
         if (view && !(value & kValueFailed)) onSample(scanMhz_[i], db, f, value, t);
+        if (onScanSample && !(value & kValueFailed)) onScanSample((unsigned)i, value, t);
     }
     pl[0] = (uint8_t)kRecordScan;
     pl[1] = cycleSeq_++;
@@ -238,6 +386,12 @@ void Core::scanCycle(uint32_t nowUs) {
 }
 
 void Core::step(uint32_t nowUs) {
+    if (state_ == State::Update && nowUs - updateLastUs_ >= kUpdateIdleUs) {
+        update_->abort();   // the S3 went away part way through
+        state_ = State::NoFreq;
+        send("u,err,timeout");
+        status(nowUs);
+    }
     if (state_ == State::Scan) scanCycle(nowUs);
     bool becameReady = false;
     if (state_ == State::Tuning) {
@@ -306,8 +460,9 @@ uint16_t Core::rssiFromDb(float db) const {
 }
 
 void Core::status(uint32_t nowUs) {
-    char payload[48];
-    snprintf(payload, sizeof payload, "S,%d,%d,%s,%s", mhz_, gain_, stateName(state_), kFirmware);
+    char payload[80];
+    snprintf(payload, sizeof payload, "S,%d,%d,%s,%s,%s,%s", mhz_, gain_, stateName(state_), kFirmware, version_,
+             board_);
     send(payload);
     lastStatusUs_ = nowUs;
     ++statuses;
