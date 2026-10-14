@@ -122,7 +122,15 @@ uint8_t pllReg(int reg) { return phy_i2c_readReg(kI2cPll, 1, (uint8_t)reg); }
 void fullTune(int mhz, int bwMode) { phy_set_chanfreq((uint32_t)mhz, (uint8_t)(bwMode ? 1 : 0)); }
 
 // Third argument 0: the direct register write, no Bluetooth path, no delay.
-void forceGain(int index) { force_rx_gain(1, index, 0); }
+// Rewriting the force while it already holds disturbs the receiver (spikes
+// after hops, the level wandering on a steady carrier; docs/RF_RESEARCH.md),
+// so the write happens only when the register says the lock is off or on
+// another index.
+void forceGain(int index) {
+    uint32_t r = gainReg();
+    if (((r >> 23) & 1u) && (r >> 24) == (uint32_t)index) return;
+    force_rx_gain(1, index, 0);
+}
 
 uint32_t gainReg() { return *(volatile uint32_t*)kRegGain; }
 int gainMax() { return (int)((gainReg() >> 8) & 0x7F); }

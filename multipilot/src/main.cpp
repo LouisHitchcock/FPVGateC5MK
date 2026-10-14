@@ -117,10 +117,10 @@ public:
     bool tune(int mhz, int gain) override {
         meter_ = &meter;
         radio::hop(mhz - cfg.offsetMhz);
-        if (gain != appliedGain_) {
-            radio::forceGain(gain);
-            appliedGain_ = gain;
-        }
+        // Always: forceGain only writes if the lock has gone, and the cached
+        // index can't tell whether it has.
+        radio::forceGain(gain);
+        appliedGain_ = gain;
         if (cfg.settleUs > 0) esp_rom_delay_us(cfg.settleUs);
         // The first measurement after OK performs the dump. A warm-up dump
         // here doubled retune work and consumed the useful dwell time without
@@ -134,8 +134,8 @@ public:
         esp_rom_delay_us(20);
     }
     // Scan mode: the PLL is settled when hopNoWait returns (measured with
-    // hopprof, docs/RF_RESEARCH.md), so no settle delay. Re-forcing the gain
-    // each hop costs one register write.
+    // hopprof, docs/RF_RESEARCH.md), so no settle delay. The gain is checked
+    // after each hop (one register read) and written only if the lock went.
     void hop(int mhz, int gain) override {
         meter_ = &nodeScanMeter;
         uint32_t c0 = esp_cpu_get_cycle_count();

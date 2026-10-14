@@ -145,8 +145,11 @@ hop.
   a 100 us delay.
 - The highest calibrated index is in bits 8-14 of the same register: 89 on
   chip v1.0. The firmware reads it and never forces higher.
-- The gain is re-forced after every hop (one register write). The gain field
-  in every sample word confirms it held.
+- After every hop the firmware reads the register and re-forces the gain
+  only if the force bit is clear or the index differs. Writing the force
+  again while it already holds disturbs the receiver: spikes after hops and
+  a wandering level on a steady carrier (RF_RESEARCH.md section 3). The gain
+  field in every sample word confirms the lock held.
 
 ## 8. Bring-up order
 

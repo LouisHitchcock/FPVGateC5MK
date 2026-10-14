@@ -28,6 +28,7 @@ void hopNoWait(int mhz, uint32_t* stageUs = nullptr, int skip = 0);
 uint8_t pllReg(int reg);
 // Full retune through phy_set_chanfreq (calibrates; ~1.2 ms).
 void fullTune(int mhz, int bwMode);
+// Force the receive gain index; does nothing if it is already forced there.
 void forceGain(int index);
 // Highest calibrated gain index (bits 8-14 of 0x600A702C).
 int gainMax();
