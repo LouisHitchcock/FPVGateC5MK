@@ -23,7 +23,7 @@ bash test/run.sh
   values per slot, timestamps and clock mapping, a corrupted record, a C5
   reboot, a lost slot list, gain and slot changes, and gate-pass detection.
 
-The USB endpoint has its own `test_rh_usb.cpp` checks for API 35 discovery,
+The USB endpoint has its own `test_rh_usb.cpp` checks for API 36 discovery, seats turned off,
 checksums, seat selection, frequency/threshold isolation, peak-plateau timing,
 split snapshot reads, counter/time rollover, stale samples and partial writes.
 `test_rh_usb.py` exercises RH's actual serial client against that endpoint;

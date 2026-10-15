@@ -14,6 +14,11 @@ void put16(uint8_t* out, uint16_t value) {
     out[0] = (uint8_t)(value >> 8);
     out[1] = (uint8_t)value;
 }
+// RH turns a seat off by writing this "power down" frequency (API 24 and
+// later), or 0, and reads it back to check the write.
+constexpr uint16_t kSeatOffMhz = 1111;
+// A frequency the C5 tunes to; anything else (0 or kSeatOffMhz) is a seat that is off.
+bool tuned(uint16_t mhz) { return mhz >= 5180 && mhz <= 5917; }
 }  // namespace
 
 void Core::begin(uint32_t nowMs) {
@@ -119,11 +124,12 @@ void Core::read(uint8_t command, uint32_t nowMs) {
     const uint8_t* data = out;
     size_t size = 1;
     switch (command) {
-        case READ_REVISION_CODE: out[0] = 0x25; out[1] = 35; size = 2; break;
+        case READ_REVISION_CODE: out[0] = 0x25; out[1] = 36; size = 2; break;
         case READ_MULTINODE_COUNT: out[0] = kSeats; break;
         case READ_CURNODE_INDEX: case READ_NODE_SLOTIDX: out[0] = selected_; break;
         case READ_FREQUENCY: put16(out, seat.frequency); size = 2; break;
-        case TEST_RX_REGISTER: out[0] = 1; break;  // validated scan frequency
+        // API 36: after a frequency write, nonzero means the receiver took it.
+        case TEST_RX_REGISTER: out[0] = tuned(seat.frequency) ? 1 : 0; break;
         case READ_RHFEAT_FLAGS: put16(out, 0); size = 2; break;  // no STM32/bootloader features
         case READ_NODE_RSSI_PEAK: out[0] = seat.peak; break;
         case READ_NODE_RSSI_NADIR: out[0] = seat.nadir; break;
@@ -158,14 +164,14 @@ void Core::applyWrite(uint32_t nowMs) {
             break;
         case WRITE_FREQUENCY: {
             uint16_t frequency = (uint16_t)((input_[0] << 8) | input_[1]);
-            if (frequency && (frequency < 5180 || frequency > 5917)) return;
+            if (frequency && frequency != kSeatOffMhz && !tuned(frequency)) return;
             if (frequency != seat.frequency) {
                 uint8_t lap = seat.lap, enter = seat.enter, exit = seat.exit;
                 seat = Seat{};
                 seat.lap = lap; seat.enter = enter; seat.exit = exit;
-                seat.frequency = frequency;
+                seat.frequency = frequency;  // kept as written, for RH's read-back
                 uint16_t slots[kSeats];
-                for (unsigned i = 0; i < kSeats; ++i) slots[i] = seats_[i].frequency;
+                for (unsigned i = 0; i < kSeats; ++i) slots[i] = tuned(seats_[i].frequency) ? seats_[i].frequency : 0;
                 for (auto& other : seats_) other.crossing = false;
                 port_.frequencies(slots);
             }
@@ -186,7 +192,7 @@ void Core::applyWrite(uint32_t nowMs) {
 void Core::sample(unsigned index, uint16_t rawRssi, uint32_t sampleMs) {
     if (index >= kSeats || rawRssi > 1023) return;
     Seat& seat = seats_[index];
-    if (!seat.frequency) return;
+    if (!tuned(seat.frequency)) return;
     uint8_t level = (uint8_t)(rawRssi / 4);
     if (level < 1) level = 1;
     if (level > 254) level = 254;

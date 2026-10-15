@@ -44,7 +44,7 @@ void tests() {
     rhusb::Core core(port);
     core.setIdentity("1.1.0", "xiaoc5");
     core.begin(0);
-    CHECK(read(core, port, 0x22) == std::vector<uint8_t>({0x25, 35}));
+    CHECK(read(core, port, 0x22) == std::vector<uint8_t>({0x25, 36}));
     CHECK(read(core, port, 0x39) == std::vector<uint8_t>({8}));
     CHECK(read(core, port, 0x3D).size() == 16);
     CHECK(read(core, port, 0x40).size() == 16);
@@ -94,8 +94,20 @@ void tests() {
     CHECK(read(core, port, 0x22, 1120).size() == 2);
     write(core, 0x51, {0x17, 0x38});  // 5944 unsupported: previous R6 remains
     CHECK(read(core, port, 0x03) == std::vector<uint8_t>({0x16, 0xD3}));
+    CHECK(read(core, port, 0x04)[0] == 1);  // API 36 register test: tuned
     write(core, 0x51, {0, 0});
     CHECK(port.slots[5] == 0 && port.slots[6] == 5880);
+    CHECK(read(core, port, 0x04)[0] == 0);  // off
+    // RH turns a seat off with its "power down" 1111 and reads it back.
+    write(core, 0x51, {0x16, 0xD3});
+    CHECK(port.slots[5] == 5843);
+    write(core, 0x51, {0x04, 0x57});
+    CHECK(port.slots[5] == 0 && port.slots[6] == 5880);
+    CHECK(read(core, port, 0x03) == std::vector<uint8_t>({0x04, 0x57}));
+    CHECK(read(core, port, 0x04)[0] == 0);
+    core.sample(5, 600, 1020);  // an off seat takes no samples
+    CHECK(read(core, port, 0x05, 1020)[3] == 1);
+    write(core, 0x51, {0, 0});
     core.sample(5, 1023, 1200);
     CHECK(read(core, port, 0x05, 1200)[3] == 1);
     write(core, 0x51, {0x16, 0xD3});

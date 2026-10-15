@@ -95,19 +95,23 @@ class RotorHazardUsbTest(unittest.TestCase):
         self.assertEqual([n.multi_node_slot_index for n in nodes], list(range(8)))
         self.assertEqual([n.frequency for n in nodes], [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917])
         self.assertEqual(nodes[0].firmware_version_str, 'usb-dev')
-        self.assertTrue(all(n.api_level == 35 and n.api_valid_flag for n in nodes))
+        # RH's newest node API: no "node firmware update available" notice.
+        self.assertTrue(all(n.api_level == 36 and n.api_valid_flag for n in nodes))
         self.assertEqual((self.serial.dtr, self.serial.rts), (0, 0))
 
     def test_native_tuning_writes_are_independent_and_can_disable_seats(self):
-        self.interface.set_frequency(5, 5800)
+        # API 36: each frequency write is checked with the register test.
+        self.assertTrue(self.interface.set_frequency(5, 5800))
         self.assertEqual(self.interface.nodes[5].frequency, 5800)
         self.interface.set_enter_at_level(5, 100)
         self.interface.set_exit_at_level(5, 70)
         self.assertEqual(self.interface.get_value_rssi(self.interface.nodes[5], 0x31), 100)
         self.assertEqual(self.interface.get_value_rssi(self.interface.nodes[5], 0x32), 70)
         self.assertEqual(self.interface.get_value_rssi(self.interface.nodes[6], 0x31), 90)
-        self.interface.set_frequency(5, 0)
+        # RH turns a seat off by writing 1111; the C5 must take it, not keep scanning.
+        self.assertTrue(self.interface.set_frequency(5, 0))
         self.assertEqual(self.interface.nodes[5].frequency, 0)
+        self.assertEqual(self.interface.get_value_16(self.interface.nodes[5], 0x03), 1111)
 
     def test_native_update_records_peak_time_not_poll_time(self):
         self.interface.pass_record_callback = Mock()

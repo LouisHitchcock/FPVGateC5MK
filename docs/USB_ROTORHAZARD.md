@@ -39,9 +39,14 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 ## Firmware behaviour
 
 - Boot still opens the existing USB scanner. RH's revision request switches
-  USB to its standard API 35 binary serial protocol, with eight independent seats.
-- Discovery starts at R1-R8; RH then applies its saved profile. Frequency zero
-  disables a seat. Supported frequencies remain 5180-5917 MHz.
+  USB to its standard binary serial protocol, with eight independent seats. From
+  1.2.2 it reports node API 36, RH's newest, so RH no longer shows "Node firmware
+  update is available"; 1.2.1 and earlier report 35.
+- Discovery starts at R1-R8; RH then applies its saved profile. Turning a seat
+  off in RH (RH writes 1111, or 0) stops the C5 scanning it; 1.2.1 and earlier
+  kept scanning it. Supported frequencies remain 5180-5917 MHz. After each
+  frequency write RH runs API 36's register test, which passes when the seat is
+  on a supported frequency.
 - RSSI is the existing C5 node-filter output divided by four, clamped to RH's
   valid range 1-254. This does not add Widscan58's 255 ms median filter. Calibrate
   this mode rather than assuming thresholds from a different receiver transfer.
