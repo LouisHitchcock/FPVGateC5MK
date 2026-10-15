@@ -127,6 +127,45 @@ void tests() {
     CHECK(read(core, port, 0x05, 512)[0] == 0);
 }
 
+// RSSI history: RH polls a few times a second, so each poll reports one
+// extremum of the samples since the last one, as RH's own nodes do.
+void historyTests() {
+    Port port;
+    rhusb::Core core(port);
+    core.begin(0);
+    write(core, 0x7A, {2});
+    write(core, 0x71, {200});  // no crossings here: history only
+    write(core, 0x72, {190});
+    auto poll = [&](uint32_t now) { read(core, port, 0x0D, now); return read(core, port, 0x0E, now); };
+    // flags, pass nadir, node nadir, level, ms since first (16 bit), duration (16 bit)
+    auto level = [](const std::vector<uint8_t>& e) { return e[3]; };
+    auto since = [](const std::vector<uint8_t>& e) { return e[4] * 256 + e[5]; };
+    auto held = [](const std::vector<uint8_t>& e) { return e[6] * 256 + e[7]; };
+    for (uint32_t t = 0; t < 50; ++t) core.sample(2, 120, t);  // floor: 30
+    auto e = poll(50);
+    CHECK(level(e) == 30);
+    // A pass lasting 3 ms between polls reaches RH at its peak and time.
+    for (uint32_t t = 50; t < 100; ++t) core.sample(2, t >= 70 && t < 73 ? 440 : 120, t);
+    e = poll(100);
+    CHECK((e[0] & 2) && level(e) == 110);
+    CHECK(since(e) == 30 && held(e) == 2);  // 440 at 70..72
+    // The quiet window after it comes back down as a nadir.
+    for (uint32_t t = 100; t < 150; ++t) core.sample(2, t == 120 ? 100 : 120, t);
+    e = poll(150);
+    CHECK(!(e[0] & 2) && level(e) == 25 && since(e) == 30 && held(e) == 0);
+    // Then a rise is a peak again.
+    for (uint32_t t = 150; t < 200; ++t) core.sample(2, 160, t);
+    e = poll(200);
+    CHECK((e[0] & 2) && level(e) == 40 && held(e) == 49);
+    // No samples since the last poll: the latest level, as before.
+    e = poll(250);
+    CHECK((e[0] & 2) && level(e) == 40 && since(e) == 51 && held(e) == 0);
+    // READ_LAP_STATS carries the same history in bytes 8-15.
+    for (uint32_t t = 250; t < 300; ++t) core.sample(2, t == 260 ? 600 : 160, t);
+    auto stats = read(core, port, 0x05, 300);
+    CHECK((stats[8] & 2) && stats[11] == 150 && stats[3] == 40);
+}
+
 // Line-based simulator for Python tests driving RH's actual serial-node client.
 int bridge() {
     Port port;
@@ -158,6 +197,7 @@ int bridge() {
 int main(int argc, char** argv) {
     if (argc > 1 && !strcmp(argv[1], "--bridge")) return bridge();
     tests();
+    historyTests();
     printf("RH USB: %d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;
 }

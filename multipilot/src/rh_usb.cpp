@@ -79,6 +79,7 @@ void Core::latchStats(uint32_t nowMs) {
     if (seat.sampled && nowMs - seat.sampleMs > 100) {
         seat.crossing = false;
         seat.rssi = 1;
+        seat.windowed = false;
     }
     stats_[0] = seat.lap;
     put16(stats_ + 1, boundedAge(nowMs, seat.passMs));
@@ -86,13 +87,30 @@ void Core::latchStats(uint32_t nowMs) {
     stats_[4] = seat.peak;
     stats_[5] = seat.passPeak;
     put16(stats_ + 6, seat.loopUs);
-    // History is the latest sampled RSSI at its actual sample time, not USB arrival time.
-    stats_[8] = (seat.crossing ? 1 : 0) | 2;
+    stats_[8] = seat.crossing ? 1 : 0;
     stats_[9] = seat.passNadir;
     stats_[10] = seat.nadir;
-    stats_[11] = seat.rssi;
-    put16(stats_ + 12, boundedAge(nowMs, seat.sampleMs));
-    put16(stats_ + 14, 0);
+    // History: one extremum of the samples since the last poll, at its actual
+    // sample times, as RH's own nodes report it: the peak if it rose further
+    // from the extremum shown last than the nadir fell, else the nadir. A
+    // short pass between polls then reaches RH's graph at its true height.
+    if (seat.windowed) {
+        bool peak = seat.windowMax - seat.shown >= seat.shown - seat.windowMin;
+        uint32_t firstMs = peak ? seat.maxFirstMs : seat.minFirstMs;
+        uint32_t lastMs = peak ? seat.maxLastMs : seat.minLastMs;
+        seat.shown = peak ? seat.windowMax : seat.windowMin;
+        if (peak) stats_[8] |= 2;
+        stats_[11] = seat.shown;
+        put16(stats_ + 12, boundedAge(nowMs, firstMs));
+        put16(stats_ + 14, boundedAge(lastMs, firstMs));  // how long it held
+        seat.windowed = false;
+    } else {
+        // No samples since the last poll: the latest (or stale) level.
+        stats_[8] |= 2;
+        stats_[11] = seat.rssi;
+        put16(stats_ + 12, boundedAge(nowMs, seat.sampleMs));
+        put16(stats_ + 14, 0);
+    }
 }
 
 void Core::read(uint8_t command, uint32_t nowMs) {
@@ -181,6 +199,24 @@ void Core::sample(unsigned index, uint16_t rawRssi, uint32_t sampleMs) {
     seat.sampled = true;
     seat.sampleMs = sampleMs;
     seat.rssi = level;
+    if (!seat.windowed) {
+        seat.windowed = true;
+        seat.windowMax = seat.windowMin = level;
+        seat.maxFirstMs = seat.maxLastMs = seat.minFirstMs = seat.minLastMs = sampleMs;
+    } else {
+        if (level > seat.windowMax) {
+            seat.windowMax = level;
+            seat.maxFirstMs = seat.maxLastMs = sampleMs;
+        } else if (level == seat.windowMax) {
+            seat.maxLastMs = sampleMs;
+        }
+        if (level < seat.windowMin) {
+            seat.windowMin = level;
+            seat.minFirstMs = seat.minLastMs = sampleMs;
+        } else if (level == seat.windowMin) {
+            seat.minLastMs = sampleMs;
+        }
+    }
     if (level > seat.peak) seat.peak = level;
     if (level < seat.nadir) seat.nadir = level;
     if (seat.enter <= seat.exit) { seat.crossing = false; return; }

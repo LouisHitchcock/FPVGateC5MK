@@ -127,6 +127,25 @@ class RotorHazardUsbTest(unittest.TestCase):
         self.assertEqual(source, 0)
         self.assertTrue(node.history_times)
 
+    def test_native_history_keeps_a_short_peak_between_polls(self):
+        # Sensor Tuning's graph is RH's RSSI history. A 3 ms pass between two
+        # polls must reach it at its real height, not the level at poll time.
+        node = self.interface.nodes[5]
+        self.interface.set_enter_at_level(5, 200)  # history only, no crossing
+        self.interface.set_exit_at_level(5, 190)
+        self.interface.pass_record_callback = Mock()
+        self.interface.node_crossing_callback = Mock()
+        with patch.object(serial_node, 'monotonic', return_value=50):
+            self.serial.sample(5, 120, 1000)
+            self.serial.now = 1001
+            self.interface.update()
+            for now in range(1002, 1050):
+                self.serial.sample(5, 440 if 1020 <= now < 1023 else 120, now)
+            self.serial.now = 1050
+            self.interface.update()
+        self.assertEqual(node.current_rssi, 30)  # the level now
+        self.assertIn(110, node.history_values)  # the pass in between
+
     def test_native_capture_uses_live_rssi(self):
         node = self.interface.nodes[5]
         self.interface.pass_record_callback = Mock()

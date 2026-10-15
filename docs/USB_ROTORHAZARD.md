@@ -51,8 +51,13 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   RH applies its own round-trip correction.
 - Pass counters wrap at 256, as in RH's node protocol. Only the latest pass per
   seat is retained between host reads; this is not an unbounded event queue.
-- Polling returns the latest RSSI sample and its sample age for history. It does
-  not transfer the full 1 kHz trace or a queued extrema history to Marshal.
+- RH polls each receiver a few times a second; the C5 samples it about 1000
+  times a second. Each poll returns the latest RSSI, and for RH's RSSI history
+  (the Sensor Tuning graph and Marshal) one extremum of the samples since the
+  previous poll, at its own sample times: the peak if it rose further from the
+  extremum reported last than the nadir fell, otherwise the nadir. A short pass
+  between polls therefore appears in the graph at its real height. The full
+  1 kHz trace is not transferred.
 - Invalid checksums, unsupported frequencies and invalid seat indexes do not
   change settings. Thresholds are 1-254; detection is suspended while EnterAt
   is not higher than ExitAt. Failed captures do not produce timing samples.

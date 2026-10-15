@@ -50,6 +50,12 @@ private:
         bool crossing = false, sampled = false;
         uint32_t firstPeakMs = 0, lastPeakMs = 0, passMs = 0, sampleMs = 0;
         uint16_t loopUs = 0;
+        // Highest and lowest level since RH's last poll, for its RSSI history:
+        // it polls a few times a second, the scan samples ~1000 times. 'shown'
+        // is the extremum reported last.
+        bool windowed = false;
+        uint8_t windowMax = 0, windowMin = 0, shown = 0;
+        uint32_t maxFirstMs = 0, maxLastMs = 0, minFirstMs = 0, minLastMs = 0;
     } seats_[kSeats];
     Port& port_;
     uint8_t selected_ = 0, command_ = 0, needed_ = 0, received_ = 0;
