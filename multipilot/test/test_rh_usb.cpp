@@ -80,7 +80,8 @@ void tests() {
     auto stats = read(core, port, 0x05, 1010);
     CHECK(stats.size() == 16);
     CHECK(stats[0] == 1 && stats[1] == 0 && stats[2] == 5);  // plateau middle at 1005
-    CHECK(stats[3] == 75 && stats[5] == 150 && !(stats[8] & 1));
+    // RSSI shown: the highest sample of the last ~250 ms (600 / 4), not the last (300 / 4).
+    CHECK(stats[3] == 150 && stats[5] == 150 && !(stats[8] & 1));
     // Split reads are latched, even if samples or a new pass arrive in between.
     read(core, port, 0x0D, 1010);
     core.sample(5, 800, 1011);
@@ -132,11 +133,11 @@ void tests() {
     CHECK(stats[0] == 1 && stats[2] == 10);  // plateau middle wraps to zero
     // Lap counters wrap without losing a pass, as expected by RH's API.
     core.begin(0);
-    for (unsigned i = 0; i < 256; ++i) {
-        core.sample(0, 600, i * 2);
-        core.sample(0, 100, i * 2 + 1);
+    for (unsigned i = 0; i < 256; ++i) {  // after the start-up settle time
+        core.sample(0, 600, rhusb::kSettleMs + i * 2);
+        core.sample(0, 100, rhusb::kSettleMs + i * 2 + 1);
     }
-    CHECK(read(core, port, 0x05, 512)[0] == 0);
+    CHECK(read(core, port, 0x05, rhusb::kSettleMs + 512)[0] == 0);
 }
 
 // RSSI history: RH polls a few times a second, so each poll reports one
@@ -175,7 +176,42 @@ void historyTests() {
     // READ_LAP_STATS carries the same history in bytes 8-15.
     for (uint32_t t = 250; t < 300; ++t) core.sample(2, t == 260 ? 600 : 160, t);
     auto stats = read(core, port, 0x05, 300);
-    CHECK((stats[8] & 2) && stats[11] == 150 && stats[3] == 40);
+    CHECK((stats[8] & 2) && stats[11] == 150 && stats[3] == 150);  // shown: the 260 ms peak
+}
+
+// The RSSI RH shows (its live graph, a point every ~200 ms) holds each peak
+// for ~250 ms, and a frequency change can't start a crossing while settling.
+void shownAndSettleTests() {
+    Port port;
+    rhusb::Core core(port);
+    core.begin(0);
+    write(core, 0x7A, {1}, 0);
+    write(core, 0x71, {100}, 0);
+    write(core, 0x72, {80}, 0);
+    // Samples up to 'now' (a 3 ms peak at 500 ms), then the RSSI shown at 'now'.
+    uint32_t sampled = 200;
+    auto shown = [&](uint32_t now) {
+        for (; sampled <= now; ++sampled) core.sample(1, sampled >= 500 && sampled < 503 ? 480 : 120, sampled);
+        return read(core, port, 0x05, now)[3];
+    };
+    // The peak shows from then until ~250 ms later, then the floor.
+    CHECK(shown(450) == 30);
+    CHECK(shown(510) == 120);
+    CHECK(shown(700) == 120);
+    CHECK(shown(760) == 30);
+    CHECK(shown(999) == 30);
+    // Settling: a lone high sample right after a frequency change isn't a pass.
+    uint8_t laps = read(core, port, 0x05, 1000)[0];
+    write(core, 0x51, {0x16, 0x47}, 1000);  // seat 1 to 5703 (any change settles all seats)
+    core.sample(1, 600, 1010);
+    CHECK(!(read(core, port, 0x05, 1010)[8] & 1));
+    core.sample(1, 120, 1011);
+    CHECK(read(core, port, 0x05, 1011)[0] == laps);
+    CHECK(read(core, port, 0x23, 1011)[0] == 1);  // nor a node peak (reset by the change)
+    // After it, a pass counts as usual.
+    core.sample(1, 600, 1120);
+    core.sample(1, 120, 1121);
+    CHECK(read(core, port, 0x05, 1121)[0] == (uint8_t)(laps + 1));
 }
 
 // Line-based simulator for Python tests driving RH's actual serial-node client.
@@ -210,6 +246,7 @@ int main(int argc, char** argv) {
     if (argc > 1 && !strcmp(argv[1], "--bridge")) return bridge();
     tests();
     historyTests();
+    shownAndSettleTests();
     printf("RH USB: %d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;
 }

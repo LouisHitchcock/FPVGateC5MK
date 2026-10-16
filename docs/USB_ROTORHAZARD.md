@@ -56,13 +56,21 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   RH applies its own round-trip correction.
 - Pass counters wrap at 256, as in RH's node protocol. Only the latest pass per
   seat is retained between host reads; this is not an unbounded event queue.
-- RH polls each receiver a few times a second; the C5 samples it about 1000
-  times a second. Each poll returns the latest RSSI, and for RH's RSSI history
-  (the Sensor Tuning graph and Marshal) one extremum of the samples since the
-  previous poll, at its own sample times: the peak if it rose further from the
-  extremum reported last than the nadir fell, otherwise the nadir. A short pass
-  between polls therefore appears in the graph at its real height. The full
-  1 kHz trace is not transferred.
+- RH polls each receiver a few times a second and its live graph adds a point
+  about every 200 ms, while the C5 samples each seat about 1000 times a second.
+  From 1.2.2 the RSSI the C5 reports to RH is the highest sample of about the
+  last 250 ms, so every pass reaches the live graph at its real height; before,
+  it was the latest sample, and a short pass could fall between graph points.
+  RH's Capture averages this value, so captured levels come out a few counts
+  higher than with 1.2.1 (on the safe side). Crossing detection still uses
+  every sample.
+- For RH's RSSI history (Marshal), each poll also reports one extremum of the
+  samples since the previous poll, at its own sample times: the peak if it rose
+  further from the extremum reported last than the nadir fell, otherwise the
+  nadir. The full 1 kHz trace is not transferred.
+- After any frequency change no crossing starts for 100 ms, and NodePeak and
+  NodeNadir ignore those samples: the scan restarts with empty filters, and a
+  lone settling sample could otherwise blip the crossing flag or count a pass.
 - Invalid checksums, unsupported frequencies and invalid seat indexes do not
   change settings. Thresholds are 1-254; detection is suspended while EnterAt
   is not higher than ExitAt. Failed captures do not produce timing samples.

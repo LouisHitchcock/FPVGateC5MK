@@ -29,7 +29,25 @@ void Core::begin(uint32_t nowMs) {
     for (unsigned i = 0; i < kSeats; ++i) seats_[i].frequency = raceband[i];
     // RH requires nonzero frequencies while discovering its hardware interface.
     port_.frequencies(raceband);
+    settleAll(nowMs);
     memset(stats_, 0, sizeof stats_);
+}
+
+void Core::settleAll(uint32_t nowMs) {
+    // Every frequency change restarts the scan of all seats with empty filters.
+    for (auto& seat : seats_) {
+        seat.crossing = false;
+        seat.settleUntilMs = nowMs + kSettleMs;
+    }
+}
+
+uint8_t Core::shownRssi(const Seat& seat, uint32_t nowMs) {
+    uint32_t now = nowMs / kShowBucketMs;
+    uint8_t shown = 0;
+    for (unsigned i = 0; i < kShowBuckets; ++i)
+        if (seat.bucketUsed[i] && now - seat.bucketId[i] < kShowBuckets && seat.bucketMax[i] > shown)
+            shown = seat.bucketMax[i];
+    return shown ? shown : seat.rssi;
 }
 
 void Core::end() {
@@ -81,14 +99,17 @@ void Core::reply(const uint8_t* data, size_t size) {
 
 void Core::latchStats(uint32_t nowMs) {
     Seat& seat = seats_[selected_];
-    if (seat.sampled && nowMs - seat.sampleMs > 100) {
+    bool stale = seat.sampled && nowMs - seat.sampleMs > 100;
+    if (stale) {
         seat.crossing = false;
         seat.rssi = 1;
         seat.windowed = false;
     }
     stats_[0] = seat.lap;
     put16(stats_ + 1, boundedAge(nowMs, seat.passMs));
-    stats_[3] = seat.rssi;
+    // RH's current RSSI (its live graph and Capture): the rolling maximum,
+    // or 1 once the samples have stopped.
+    stats_[3] = stale ? 1 : shownRssi(seat, nowMs);
     stats_[4] = seat.peak;
     stats_[5] = seat.passPeak;
     put16(stats_ + 6, seat.loopUs);
@@ -172,7 +193,7 @@ void Core::applyWrite(uint32_t nowMs) {
                 seat.frequency = frequency;  // kept as written, for RH's read-back
                 uint16_t slots[kSeats];
                 for (unsigned i = 0; i < kSeats; ++i) slots[i] = tuned(seats_[i].frequency) ? seats_[i].frequency : 0;
-                for (auto& other : seats_) other.crossing = false;
+                settleAll(nowMs);
                 port_.frequencies(slots);
             }
             break;
@@ -223,6 +244,17 @@ void Core::sample(unsigned index, uint16_t rawRssi, uint32_t sampleMs) {
             seat.minLastMs = sampleMs;
         }
     }
+    uint32_t bucket = sampleMs / kShowBucketMs;
+    unsigned slot = bucket % kShowBuckets;
+    if (!seat.bucketUsed[slot] || seat.bucketId[slot] != bucket) {
+        seat.bucketUsed[slot] = true;
+        seat.bucketId[slot] = bucket;
+        seat.bucketMax[slot] = level;
+    } else if (level > seat.bucketMax[slot]) {
+        seat.bucketMax[slot] = level;
+    }
+    // Settling after a frequency change: shown, but not a pass or a node peak.
+    if ((int32_t)(sampleMs - seat.settleUntilMs) < 0) { seat.crossing = false; return; }
     if (level > seat.peak) seat.peak = level;
     if (level < seat.nadir) seat.nadir = level;
     if (seat.enter <= seat.exit) { seat.crossing = false; return; }

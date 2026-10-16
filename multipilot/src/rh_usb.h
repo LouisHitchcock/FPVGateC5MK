@@ -10,6 +10,13 @@ namespace rhusb {
 constexpr unsigned kSeats = 8;
 constexpr uint32_t kCommandTimeoutMs = 100;
 constexpr uint32_t kIdleTimeoutMs = 5000;
+// After a frequency change no crossing starts for this long: the scan
+// restarts with empty filters, so a lone settling sample isn't a pass.
+constexpr uint32_t kSettleMs = 100;
+// The RSSI RH shows is the highest sample of about the last 250 ms, so its
+// graph, a point every ~200 ms, gets every peak at its true height.
+constexpr unsigned kShowBuckets = 10;
+constexpr uint32_t kShowBucketMs = 25;
 
 // Command IDs and byte order follow RotorHazard's src/interface/RHInterface.py.
 enum Command : uint8_t {
@@ -56,6 +63,12 @@ private:
         bool windowed = false;
         uint8_t windowMax = 0, windowMin = 0, shown = 0;
         uint32_t maxFirstMs = 0, maxLastMs = 0, minFirstMs = 0, minLastMs = 0;
+        // Rolling maximum for the RSSI RH shows: the highest sample in each
+        // kShowBucketMs bucket, and which bucket (sample ms / kShowBucketMs).
+        uint8_t bucketMax[kShowBuckets] = {};
+        uint32_t bucketId[kShowBuckets] = {};
+        bool bucketUsed[kShowBuckets] = {};
+        uint32_t settleUntilMs = 0;
     } seats_[kSeats];
     Port& port_;
     uint8_t selected_ = 0, command_ = 0, needed_ = 0, received_ = 0;
@@ -66,6 +79,8 @@ private:
     void applyWrite(uint32_t nowMs);
     void reply(const uint8_t* data, size_t size);
     void latchStats(uint32_t nowMs);
+    void settleAll(uint32_t nowMs);
+    static uint8_t shownRssi(const Seat& seat, uint32_t nowMs);
 };
 
 }  // namespace rhusb
