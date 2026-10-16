@@ -95,19 +95,23 @@ class RotorHazardUsbTest(unittest.TestCase):
         self.assertEqual([n.multi_node_slot_index for n in nodes], list(range(8)))
         self.assertEqual([n.frequency for n in nodes], [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917])
         self.assertEqual(nodes[0].firmware_version_str, 'usb-dev')
-        self.assertTrue(all(n.api_level == 35 and n.api_valid_flag for n in nodes))
+        # RH's newest node API: no "node firmware update available" notice.
+        self.assertTrue(all(n.api_level == 36 and n.api_valid_flag for n in nodes))
         self.assertEqual((self.serial.dtr, self.serial.rts), (0, 0))
 
     def test_native_tuning_writes_are_independent_and_can_disable_seats(self):
-        self.interface.set_frequency(5, 5800)
+        # API 36: each frequency write is checked with the register test.
+        self.assertTrue(self.interface.set_frequency(5, 5800))
         self.assertEqual(self.interface.nodes[5].frequency, 5800)
         self.interface.set_enter_at_level(5, 100)
         self.interface.set_exit_at_level(5, 70)
         self.assertEqual(self.interface.get_value_rssi(self.interface.nodes[5], 0x31), 100)
         self.assertEqual(self.interface.get_value_rssi(self.interface.nodes[5], 0x32), 70)
         self.assertEqual(self.interface.get_value_rssi(self.interface.nodes[6], 0x31), 90)
-        self.interface.set_frequency(5, 0)
+        # RH turns a seat off by writing 1111; the C5 must take it, not keep scanning.
+        self.assertTrue(self.interface.set_frequency(5, 0))
         self.assertEqual(self.interface.nodes[5].frequency, 0)
+        self.assertEqual(self.interface.get_value_16(self.interface.nodes[5], 0x03), 1111)
 
     def test_native_update_records_peak_time_not_poll_time(self):
         self.interface.pass_record_callback = Mock()
@@ -126,6 +130,32 @@ class RotorHazardUsbTest(unittest.TestCase):
         self.assertAlmostEqual(timestamp, 49.995)
         self.assertEqual(source, 0)
         self.assertTrue(node.history_times)
+
+    def test_native_history_keeps_a_short_peak_between_polls(self):
+        # Sensor Tuning's graph is RH's RSSI history. A 3 ms pass between two
+        # polls must reach it at its real height, not the level at poll time.
+        node = self.interface.nodes[5]
+        self.interface.set_enter_at_level(5, 200)  # history only, no crossing
+        self.interface.set_exit_at_level(5, 190)
+        self.interface.pass_record_callback = Mock()
+        self.interface.node_crossing_callback = Mock()
+        with patch.object(serial_node, 'monotonic', return_value=50):
+            self.serial.sample(5, 120, 1000)
+            self.serial.now = 1001
+            self.interface.update()
+            for now in range(1002, 1050):
+                self.serial.sample(5, 440 if 1020 <= now < 1023 else 120, now)
+            self.serial.now = 1050
+            self.interface.update()
+        self.assertIn(110, node.history_values)  # the pass in between, for Marshal
+        # The live graph plots current_rssi every ~200 ms: it holds the pass for ~250 ms.
+        self.assertEqual(node.current_rssi, 110)
+        with patch.object(serial_node, 'monotonic', return_value=50):
+            for now in range(1050, 1300):
+                self.serial.sample(5, 120, now)
+            self.serial.now = 1300
+            self.interface.update()
+        self.assertEqual(node.current_rssi, 30)  # then the floor again
 
     def test_native_capture_uses_live_rssi(self):
         node = self.interface.nodes[5]

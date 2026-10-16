@@ -39,9 +39,14 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 ## Firmware behaviour
 
 - Boot still opens the existing USB scanner. RH's revision request switches
-  USB to its standard API 35 binary serial protocol, with eight independent seats.
-- Discovery starts at R1-R8; RH then applies its saved profile. Frequency zero
-  disables a seat. Supported frequencies remain 5180-5917 MHz.
+  USB to its standard binary serial protocol, with eight independent seats. From
+  1.2.2 it reports node API 36, RH's newest, so RH no longer shows "Node firmware
+  update is available"; 1.2.1 and earlier report 35.
+- Discovery starts at R1-R8; RH then applies its saved profile. Turning a seat
+  off in RH (RH writes 1111, or 0) stops the C5 scanning it; 1.2.1 and earlier
+  kept scanning it. Supported frequencies remain 5180-5917 MHz. After each
+  frequency write RH runs API 36's register test, which passes when the seat is
+  on a supported frequency.
 - RSSI is the existing C5 node-filter output divided by four, clamped to RH's
   valid range 1-254. This does not add Widscan58's 255 ms median filter. Calibrate
   this mode rather than assuming thresholds from a different receiver transfer.
@@ -51,8 +56,42 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   RH applies its own round-trip correction.
 - Pass counters wrap at 256, as in RH's node protocol. Only the latest pass per
   seat is retained between host reads; this is not an unbounded event queue.
-- Polling returns the latest RSSI sample and its sample age for history. It does
-  not transfer the full 1 kHz trace or a queued extrema history to Marshal.
+- RH polls each receiver a few times a second and its live graph adds a point
+  about every 200 ms, while the C5 samples each seat about 1000 times a second.
+  From 1.2.2 the RSSI the C5 reports to RH is the highest sample of about the
+  last 250 ms, so every pass reaches the live graph at its real height; before,
+  it was the latest sample, and a short pass could fall between graph points.
+  RH's Capture averages this value, so captured levels come out a few counts
+  higher than with 1.2.1 (on the safe side). Crossing detection still uses
+  every sample.
+- For RH's RSSI history (Marshal), each poll also reports one extremum of the
+  samples since the previous poll, at its own sample times: the peak if it rose
+  further from the extremum reported last than the nadir fell, otherwise the
+  nadir. The full 1 kHz trace is not transferred.
+- After any frequency change no crossing starts for 100 ms, and NodePeak and
+  NodeNadir ignore those samples: the scan restarts with empty filters, and a
+  lone settling sample could otherwise blip the crossing flag or count a pass.
+- A VTX powering on or changing channel jumps from the noise floor past
+  EnterAt in a few ms, and often lights up neighbouring channels for 10-80 ms
+  on the way. A quad flying in takes far longer to rise that far. So a
+  crossing that starts within 30 ms of leaving the floor, after at least 100 ms
+  at the floor (within 16 levels of the seat's nadir), is hidden from RH for
+  90 ms and dropped if it ends sooner. One that lasts becomes a normal
+  crossing, timed from its peak as usual. A dropped jump is left out of RH's
+  RSSI, history and NodePeak too, so its graph doesn't show it; one that lasts
+  appears up to 90 ms late, at its own time. The same goes for a jump that
+  stays under EnterAt: anything that rises twice the margin off the floor (or
+  to EnterAt, if that is lower) that fast and falls back within 90 ms is left
+  out.
+  `node reject [rise hold quiet margin]` on the console changes the four
+  values (`node reject 0` turns it off) until the C5 restarts. On a bench
+  recording on 2026-10-16 this dropped 116 of 128 VTX start-up and
+  channel-change bursts and no passes.
+- The crossing flag RH reads stays set for 250 ms after a pass ends. RH reads
+  it about every 100 ms and a fast pass can be over EnterAt for less, so
+  without this most fast passes never showed as crossings on its graph. Lap
+  counts and times are unchanged, and RH's force-end (race start and stop)
+  clears it at once.
 - Invalid checksums, unsupported frequencies and invalid seat indexes do not
   change settings. Thresholds are 1-254; detection is suspended while EnterAt
   is not higher than ExitAt. Failed captures do not produce timing samples.
@@ -60,8 +99,13 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   RSSI 1 with no crossing rather than showing the last reading as live.
 - USB does not take the radio from an already active S3/UART session. While RH
   owns it, UART commands are ignored and framed scanner output is suppressed.
-  Five seconds without a valid RH request releases USB ownership. `scan on`
-  resumes the dashboard scanner afterward. Power-cycle before switching an
+  From 1.2.2 RH keeps USB until the console asks for it back, however long it
+  stays quiet: RH only starts polling once a browser connects, and 1.2.1 and
+  earlier released USB after 5 s of silence and could not be reclaimed by RH,
+  which then failed with "Error setting WRITE_CURNODE_INDEX" or "Unable to fetch
+  revision code". A console command line (`scan on`, `status`, `node`, `help`,
+  `regs`, `pilots`, `gain` or `timer`, as sent by the dashboard or `mp.py`) ends
+  the RH session and runs. Power-cycle before switching an
   actively S3-controlled receiver to standalone USB.
 - Thresholds are held in RAM; RH supplies calibration from its saved profile.
   C5 receiver gain remains the existing stored node gain. USB firmware updating

@@ -14,7 +14,7 @@ firmware schedules it and why it is fast.
 | USB scanner | Boot default | Cycles `cfg.pilots` with `visit()` (stock hop, n=2048, settle) and sends `R` frames to the USB dashboard (`web/index.html`, `tools/mp.py`) |
 | Node, single frequency | `F` from the host | `node::Core` state machine: retune, `OK`, `R` lines at 1 kHz |
 | **Node, scan** | `P` from the host | `Core::scanCycle()` every pass: all slots, one record per cycle |
-| Native RH USB | RH revision request, when UART is idle | Same node scan engine, full-rate crossing detection; API 35 snapshots instead of UART records |
+| Native RH USB | RH revision request, when UART is idle | Same node scan engine, full-rate crossing detection; RH serial-node snapshots instead of UART records |
 
 The first valid line from the host makes the node active and pauses the USB
 scanner (`scan on` on the console takes the radio back). `node off` ignores

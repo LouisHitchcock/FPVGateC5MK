@@ -8,144 +8,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FPVGate C5MK</title>
 <style>
-  :root { --bg: #0f1115; --panel: #171a21; --line: #2a2f3a; --text: #d8dce4; --dim: #8a93a3; --accent: #4f8cff;
-          --ok: #3ccf6e; --warn: #f0b429; --bad: #ef5350; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px system-ui, sans-serif; }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px;
-           background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
-  header h1 { font-size: 16px; margin: 0 8px 0 0; }
-  main { padding: 12px 16px; display: grid; gap: 12px; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-  section h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
-  button, select, input { font: inherit; color: var(--text); background: #222733; border: 1px solid var(--line);
-                          border-radius: 5px; padding: 4px 9px; }
+  body { margin: 0; background: #1e1e1e; color: #cccccc; font: 12px Consolas, ui-monospace, monospace; }
+  header { padding: 3px 6px; background: #2d2d2d; border-bottom: 1px solid #444; position: sticky; top: 0; z-index: 5; }
+  header > * { vertical-align: middle; margin-right: 4px; }
+  header h1 { display: inline; font-size: 12px; margin-right: 10px; }
+  main { padding: 0 6px 6px; }
+  section { border-bottom: 1px solid #3a3a3a; padding: 4px 0 6px; }
+  section h2 { margin: 0 0 3px; font-size: 12px; font-weight: normal; color: #9cdcfe; }
+  button, select, input { font: inherit; color: #ddd; background: #3a3a3a; border: 1px solid #555; border-radius: 0; padding: 0 5px; height: 20px; }
   button { cursor: pointer; }
-  button:hover:not(:disabled) { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.on { background: #2b3d63; border-color: var(--accent); }
-  button:disabled, input:disabled, select:disabled { opacity: .45; cursor: default; }
-  input[type=number] { width: 76px; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
-  .lbl { color: var(--dim); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
-  .pill { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
-  .pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #555; }
-  .pill.ok::before { background: var(--ok); } .pill.bad::before { background: var(--bad); }
-  .stats { display: flex; flex-wrap: wrap; gap: 22px; }
-  .stat .v { font-size: 18px; font-variant-numeric: tabular-nums; }
-  .stat .k { font-size: 11px; color: var(--dim); }
-  .stat.warn .v { color: var(--warn); } .stat.bad .v { color: var(--bad); }
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-  .card { border: 1px solid var(--line); border-left: 5px solid; border-radius: 6px; padding: 8px 10px; cursor: pointer;
-          background: #1b1f28; user-select: none; }
+  button:hover:not(:disabled) { background: #464646; }
+  button.on { background: #555; }
+  button:disabled, input:disabled, select:disabled { opacity: .4; cursor: default; }
+  input[type=number] { width: 64px; }
+  .row { margin-bottom: 4px; }
+  .row > * { margin-right: 4px; }
+  .lbl { color: #999; }
+  .pill { color: #999; } .pill.ok { color: #6a9955; } .pill.bad { color: #f44747; }
+  .stat { display: inline-flex; flex-direction: row-reverse; gap: 5px; margin-right: 18px; }
+  .stat .k { color: #888; } .stat .k::after { content: ":"; }
+  .stat.warn .v { color: #d7ba7d; } .stat.bad .v { color: #f44747; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 3px; }
+  .card { border: 1px solid #444; border-left: 3px solid; padding: 2px 5px; cursor: pointer; user-select: none; }
   .card.hidden { opacity: .35; }
-  .card .name { display: flex; justify-content: space-between; font-weight: 600; }
-  .card .name span { color: var(--dim); font-weight: 400; }
-  .card .db { font-size: 28px; font-variant-numeric: tabular-nums; margin: 2px 0; }
-  .card .rise { font-size: 13px; font-variant-numeric: tabular-nums; }
-  .card .meta { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; line-height: 1.5; }
-  .card .flags { font-size: 11px; color: var(--bad); min-height: 15px; }
+  .card .name { display: flex; justify-content: space-between; }
+  .card .name span, .card .meta { color: #888; }
+  .card .db { font-size: 16px; }
+  .card .flags { color: #f44747; min-height: 14px; }
   .chartwrap { position: relative; }
-  canvas { width: 100%; display: block; }
-  #chart { height: 340px; } #spec { height: 280px; }
-  .tip { position: absolute; pointer-events: none; background: rgba(15,17,21,.94); border: 1px solid var(--line);
-         border-radius: 5px; padding: 6px 8px; font-size: 12px; display: none; white-space: nowrap;
-         font-variant-numeric: tabular-nums; }
-  .tip .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  canvas { width: 100%; display: block; background: #181818; }
+  #chart { height: 320px; } #spec { height: 260px; } #wf { height: 280px; }
+  .tip { position: absolute; pointer-events: none; background: #111; border: 1px solid #666; padding: 2px 5px;
+         display: none; white-space: nowrap; }
+  .tip .sw { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
-  #log { font: 12px ui-monospace, Consolas, monospace; white-space: pre-wrap; height: 220px; overflow: auto;
-         background: #12151b; border-radius: 5px; padding: 8px; }
-  #log .me { color: var(--accent); } #log .err { color: var(--bad); }
-  table.ir { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; margin-top: 6px; }
-  table.ir td, table.ir th { padding: 2px 10px 2px 0; text-align: right; }
-  table.ir th { color: var(--dim); font-weight: 400; }
-  .dim { color: var(--dim); }
+  #log { white-space: pre-wrap; height: 200px; overflow: auto; background: #111; border: 1px solid #333; padding: 3px; }
+  #log .me { color: #569cd6; } #log .err { color: #f44747; }
+  table.ir { border-collapse: collapse; margin-top: 4px; }
+  table.ir td, table.ir th { padding: 0 10px 0 0; text-align: right; }
+  table.ir th { color: #888; font-weight: normal; }
+  .dim { color: #888; }
 </style>
 </head>
 <body>
 <header>
-  <h1>FPVGate C5MK</h1>
-  <button id="btnConnect" class="primary">Connect</button>
-  <button id="btnDisconnect" disabled>Disconnect</button>
+  <h1>c5mk</h1>
+  <button id="btnConnect">connect</button>
+  <button id="btnDisconnect" disabled>disconnect</button>
   <span id="linkPill" class="pill">not connected</span>
   <span id="modePill" class="pill"></span>
-  <button id="btnScan" disabled>Scan</button>
-  <label class="lbl">Window <select id="selWindow"><option>5</option><option selected>10</option><option>30</option><option>60</option></select> s</label>
-  <label class="lbl">Show <select id="selSeries"><option value="filt">filtered</option><option value="raw">raw</option><option value="both">both</option></select></label>
-  <label class="lbl">Y <select id="selY"><option value="fixed">-5..40 dB</option><option value="auto">auto</option></select></label>
-  <button id="btnPause">Pause</button>
-  <button id="btnFloor" title="Remember the current levels as the floor; cards then show the rise above it">Set floor</button>
-  <button id="btnRec">Record CSV</button>
+  <button id="btnScan" disabled>scan</button>
+  <label class="lbl">window <select id="selWindow"><option>5</option><option selected>10</option><option>30</option><option>60</option></select>s</label>
+  <label class="lbl">show <select id="selSeries"><option value="filt">filt</option><option value="raw">raw</option><option value="both">both</option></select></label>
+  <label class="lbl">y <select id="selY"><option value="fixed">-5..40</option><option value="auto">auto</option></select></label>
+  <button id="btnPause">pause</button>
+  <button id="btnFloor" title="store current levels as the floor; cards show the rise above it">set floor</button>
+  <button id="btnRec">rec csv</button>
   <span id="recInfo" class="dim"></span>
 </header>
 <main>
   <section>
     <div class="stats">
-      <div class="stat" id="stCycle"><div class="v">-</div><div class="k">scan cycle, ms</div></div>
-      <div class="stat" id="stRate"><div class="v">-</div><div class="k">updates/s per pilot</div></div>
-      <div class="stat" id="stGap"><div class="v">-</div><div class="k">max gap (last 2 s), ms</div></div>
-      <div class="stat" id="stSeq"><div class="v">0</div><div class="k">lost cycles</div></div>
-      <div class="stat" id="stCrc"><div class="v">0</div><div class="k">CRC errors</div></div>
-      <div class="stat" id="stDrops"><div class="v">0</div><div class="k">C5 send drops</div></div>
-      <div class="stat" id="stGain"><div class="v">-</div><div class="k">gain index</div></div>
+      <div class="stat" id="stCycle"><div class="v">-</div><div class="k">cycle ms</div></div>
+      <div class="stat" id="stRate"><div class="v">-</div><div class="k">upd/s/pilot</div></div>
+      <div class="stat" id="stGap"><div class="v">-</div><div class="k">max gap 2s ms</div></div>
+      <div class="stat" id="stSeq"><div class="v">0</div><div class="k">lost</div></div>
+      <div class="stat" id="stCrc"><div class="v">0</div><div class="k">crc</div></div>
+      <div class="stat" id="stDrops"><div class="v">0</div><div class="k">drops</div></div>
+      <div class="stat" id="stGain"><div class="v">-</div><div class="k">gain</div></div>
     </div>
   </section>
 
   <section>
-    <h2>RSSI (dB re 1 LSB²)</h2>
+    <h2>rssi (dB re 1 LSB^2)</h2>
     <div class="chartwrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
   </section>
 
   <section>
-    <h2>Channels <span class="dim" style="text-transform:none">· click a card to hide or show it on the chart</span></h2>
+    <h2>waterfall <span class="dim">(max per slice, newest at top)</span></h2>
+    <div class="chartwrap"><canvas id="wf"></canvas><div class="tip" id="wfTip"></div></div>
+  </section>
+
+  <section>
+    <h2>channels <span class="dim">(click to hide/show on chart)</span></h2>
     <div class="cards" id="cards"></div>
   </section>
 
   <div class="grid2">
     <section>
-      <h2>Scanner settings</h2>
+      <h2>scanner</h2>
       <div class="row">
-        <label class="lbl">Band <select id="selBand"></select></label>
-        <button id="btnBand" class="needs">Apply band</button>
-        <input id="inPilots" size="34" placeholder="or MHz list: 5880,5917" class="needs">
-        <button id="btnPilots" class="needs">Apply list</button>
+        <label class="lbl">band <select id="selBand"></select></label>
+        <button id="btnBand" class="needs">set band</button>
+        <input id="inPilots" size="30" placeholder="MHz list: 5880,5917" class="needs">
+        <button id="btnPilots" class="needs">set list</button>
       </div>
       <div class="row">
-        <label class="lbl">Gain <input type="number" id="inGain" min="0" max="89" value="30" class="needs"></label>
-        <label class="lbl">Settle µs <input type="number" id="inSettle" min="0" max="5000" value="100" class="needs"></label>
-        <label class="lbl">Samples <select id="selN" class="needs"><option>512</option><option>1024</option><option selected>2048</option><option>4096</option></select></label>
-        <label class="lbl">EMA α <input type="number" id="inAlpha" min="0.01" max="1" step="0.05" value="0.3" class="needs"></label>
-        <label class="lbl">Bandwidth <select id="selBw" class="needs"><option value="1">wide</option><option value="0">narrow</option></select></label>
-        <button id="btnApply" class="needs">Apply</button>
+        <label class="lbl">gain <input type="number" id="inGain" min="0" max="89" value="30" class="needs"></label>
+        <label class="lbl">settle us <input type="number" id="inSettle" min="0" max="5000" value="100" class="needs"></label>
+        <label class="lbl">n <select id="selN" class="needs"><option>512</option><option>1024</option><option selected>2048</option><option>4096</option></select></label>
+        <label class="lbl">alpha <input type="number" id="inAlpha" min="0.01" max="1" step="0.05" value="0.3" class="needs"></label>
+        <label class="lbl">bw <select id="selBw" class="needs"><option value="1">wide</option><option value="0">narrow</option></select></label>
+        <button id="btnApply" class="needs">apply</button>
       </div>
       <div class="row">
-        <button class="needs cmd" data-cmd="status">Status</button>
-        <button class="needs cmd" data-cmd="timer">Timer</button>
-        <button class="needs cmd" data-cmd="cmp 100">Stock vs direct</button>
-        <button class="needs cmd" data-cmd="regs">Registers</button>
-        <button class="needs cmd" data-cmd="help">Help</button>
+        <button class="needs cmd" data-cmd="status">status</button>
+        <button class="needs cmd" data-cmd="timer">timer</button>
+        <button class="needs cmd" data-cmd="cmp 100">cmp 100</button>
+        <button class="needs cmd" data-cmd="regs">regs</button>
+        <button class="needs cmd" data-cmd="help">help</button>
       </div>
     </section>
 
     <section>
-      <h2>Console</h2>
+      <h2>console</h2>
       <div class="row">
-        <input id="inCmd" style="flex:1" placeholder="command, then Enter" class="needs">
-        <button id="btnSend" class="needs">Send</button>
-        <button id="btnClear">Clear</button>
+        <input id="inCmd" style="width:60%" placeholder="&gt;" class="needs">
+        <button id="btnSend" class="needs">send</button>
+        <button id="btnClear">clear</button>
       </div>
       <div id="log"></div>
     </section>
   </div>
 
   <section>
-    <h2>Raw capture spectrum <span class="dim" style="text-transform:none">· x axis is RF offset from the LO (the C5's spectrum is inverted; this view corrects it)</span></h2>
+    <h2>raw capture <span class="dim">(x = RF offset from LO, inversion corrected)</span></h2>
     <div class="row">
-      <label class="lbl">LO MHz <input type="number" id="inLo" value="5870" min="5100" max="5950" class="needs"></label>
-      <label class="lbl">Samples <select id="selCapN" class="needs"><option>2048</option><option selected>4096</option><option>8192</option></select></label>
-      <button id="btnCapture" class="needs">Capture</button>
-      <button id="btnCapPilot" class="needs" title="Put the LO 10 MHz below the first visible channel">LO = first shown channel - 10</button>
+      <label class="lbl">lo MHz <input type="number" id="inLo" value="5870" min="5100" max="5950" class="needs"></label>
+      <label class="lbl">n <select id="selCapN" class="needs"><option>2048</option><option selected>4096</option><option>8192</option></select></label>
+      <button id="btnCapture" class="needs">capture</button>
+      <button id="btnCapPilot" class="needs" title="LO 10 MHz below the first visible channel">lo = ch - 10</button>
       <span id="capInfo" class="dim"></span>
     </div>
     <div class="chartwrap"><canvas id="spec"></canvas><div class="tip" id="specTip"></div></div>
@@ -300,7 +294,7 @@ let mode = null;
 function setMode(m) {
   if (m === mode) return;
   mode = m;
-  $("modePill").textContent = m === "node" ? "FPVGate node mode (S3 tuning)" : "scanner";
+  $("modePill").textContent = m === "node" ? "node mode (S3 tuning)" : "scanner";
   $("modePill").className = "pill " + (m === "node" ? "ok" : "");
 }
 
@@ -394,7 +388,7 @@ function niceStep(range, target) {
 }
 
 function drawAxes(ctx, box, x0, x1, y0, y1, xFmt) {
-  ctx.font = "11px system-ui";
+  ctx.font = "11px Consolas, monospace";
   ctx.strokeStyle = "#262b35";
   ctx.fillStyle = "#8a93a3";
   ctx.lineWidth = 1;
@@ -548,6 +542,100 @@ function drawHover(box, v) {
 $("chart").addEventListener("mousemove", e => { hoverX = e.offsetX; });
 $("chart").addEventListener("mouseleave", () => { hoverX = null; });
 
+// ---- waterfall -----------------------------------------------------------------
+// Every channel down the chart window, newest at the top. A cell is the highest
+// reading in its time slice, so a burst shorter than a slice still shows.
+const WF_STOPS = [[0, [10, 14, 40]], [0.35, [20, 110, 200]], [0.6, [50, 205, 200]], [0.8, [250, 215, 60]], [1, [255, 255, 255]]];
+function wfColor(x) {   // dark blue -> cyan -> yellow -> white over 0..1
+  x = Math.min(1, Math.max(0, x));
+  for (let i = 1; i < WF_STOPS.length; i++) {
+    const [b, cb] = WF_STOPS[i], [a, ca] = WF_STOPS[i - 1];
+    if (x <= b) return ca.map((c, k) => Math.round(c + (cb[k] - c) * (x - a) / (b - a)));
+  }
+  return WF_STOPS[WF_STOPS.length - 1][1];
+}
+
+let wf = null;   // the last render, for the tooltip: { box, rows, n, slice, db }
+const wfImage = document.createElement("canvas");
+
+function renderWaterfall() {
+  const cv = $("wf"), { ctx, W, H } = fitCanvas(cv);
+  ctx.clearRect(0, 0, W, H);
+  const v = chartView(), n = pilots.length;
+  wf = null;
+  if (!isFinite(v.tEnd) || !n) {
+    ctx.fillStyle = "#8a93a3"; ctx.font = "12px Consolas, monospace";
+    ctx.fillText("No readings yet.", 40, H / 2);
+    return;
+  }
+  const box = { l: 40, r: W - 58, t: 4, b: H - 18 };
+  const rows = Math.max(1, Math.round(box.b - box.t)), slice = v.span / rows;
+  const db = new Float32Array(rows * n).fill(NaN);
+  pilots.forEach((p, k) => {
+    const a = v.mode === "filt" ? p.filt : p.raw;
+    for (let i = lowerBound(p.t, v.t0); i < p.t.length && p.t[i] <= v.tEnd; i++) {
+      const r = Math.floor((v.tEnd - p.t[i]) / slice), j = r * n + k;
+      if (r < 0 || r >= rows || isNaN(a[i])) continue;
+      if (!(db[j] >= a[i])) db[j] = a[i];
+    }
+  });
+  let lo = -5, hi = 40;
+  if ($("selY").value === "auto") {
+    lo = Infinity; hi = -Infinity;
+    db.forEach(x => { if (!isNaN(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); } });
+    if (!(hi > lo)) { lo = -5; hi = 40; }
+  }
+  wfImage.width = n; wfImage.height = rows;
+  const ictx = wfImage.getContext("2d"), img = ictx.createImageData(n, rows);
+  for (let j = 0; j < rows * n; j++) {
+    const c = isNaN(db[j]) ? [15, 17, 21] : wfColor((db[j] - lo) / (hi - lo));
+    img.data[4 * j] = c[0]; img.data[4 * j + 1] = c[1]; img.data[4 * j + 2] = c[2]; img.data[4 * j + 3] = 255;
+  }
+  ictx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(wfImage, box.l, box.t, box.r - box.l, box.b - box.t);
+  // Channel names under their columns, and gaps between the columns.
+  const colW = (box.r - box.l) / n;
+  ctx.font = "11px Consolas, monospace";
+  pilots.forEach((p, k) => {
+    ctx.fillStyle = COLORS[k % COLORS.length];
+    ctx.fillText(p.name, box.l + colW * (k + 0.5) - ctx.measureText(p.name).width / 2, box.b + 13);
+    if (k) { ctx.fillStyle = "#0f1115"; ctx.fillRect(box.l + colW * k - 1, box.t, 2, box.b - box.t); }
+  });
+  // Seconds ago, down the left.
+  ctx.fillStyle = "#8a93a3";
+  const ts = niceStep(v.span, 5);
+  for (let s = 0; s <= v.span + 1e-9; s += ts) ctx.fillText((s ? "-" : "") + s.toFixed(0) + " s", 2, box.t + s / slice + 4);
+  // The colour scale, down the right.
+  const lx = box.r + 10;
+  for (let y = box.t; y < box.b; y++) {
+    const c = wfColor(1 - (y - box.t) / (box.b - box.t));
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.fillRect(lx, y, 10, 1);
+  }
+  ctx.fillStyle = "#8a93a3";
+  const ds = niceStep(hi - lo, 5);
+  for (let d = Math.ceil(lo / ds) * ds; d <= hi; d += ds) {
+    ctx.fillText(d.toFixed(0), lx + 13, box.b - (d - lo) / (hi - lo) * (box.b - box.t) + 4);
+  }
+  wf = { box, rows, n, slice, db, colW };
+}
+
+$("wf").addEventListener("mousemove", e => {
+  const tip = $("wfTip");
+  if (!wf) { tip.style.display = "none"; return; }
+  const r = $("wf").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const k = Math.floor((x - wf.box.l) / wf.colW), row = Math.floor(y - wf.box.t);
+  if (k < 0 || k >= wf.n || row < 0 || row >= wf.rows) { tip.style.display = "none"; return; }
+  const d = wf.db[row * wf.n + k], p = pilots[k];
+  tip.innerHTML = `<span class="sw" style="background:${COLORS[k % COLORS.length]}"></span>${p.name} · ${p.mhz} MHz<br>` +
+    `${(row * wf.slice).toFixed(1)} s ago · ${isNaN(d) ? "no reading" : d.toFixed(1) + " dB"}`;
+  tip.style.display = "block";
+  tip.style.left = Math.min(x + 14, r.width - 170) + "px";
+  tip.style.top = (y + 10) + "px";
+});
+$("wf").addEventListener("mouseleave", () => { $("wfTip").style.display = "none"; });
+
 // ---- capture spectrum ----------------------------------------------------------
 let cap = null;      // { id, lo, gain, total, words: Uint32Array, got }
 let spec = null;     // { f[], db[], lo, pilots[] }
@@ -636,7 +724,7 @@ function renderSpectrum() {
   const cv = $("spec"), { ctx, W, H } = fitCanvas(cv);
   ctx.clearRect(0, 0, W, H);
   if (!spec) {
-    ctx.fillStyle = "#8a93a3"; ctx.font = "13px system-ui";
+    ctx.fillStyle = "#8a93a3"; ctx.font = "12px Consolas, monospace";
     ctx.fillText("No capture yet. Captures pause the scan for a moment.", 40, H / 2);
     return;
   }
@@ -651,14 +739,14 @@ function renderSpectrum() {
     ctx.fillRect(box.X(p.off - 4), box.t, box.X(p.off + 4) - box.X(p.off - 4), box.b - box.t);
     ctx.globalAlpha = 0.06;
     ctx.fillRect(box.X(-p.off - 4), box.t, box.X(-p.off + 4) - box.X(-p.off - 4), box.b - box.t);
-    ctx.globalAlpha = 1; ctx.font = "11px system-ui";
+    ctx.globalAlpha = 1; ctx.font = "11px Consolas, monospace";
     ctx.fillText(p.name, box.X(p.off) - 8, box.t + 12);
     ctx.fillStyle = "#8a93a3"; ctx.fillText("mirror", box.X(-p.off) - 16, box.t + 12);
   });
   ctx.strokeStyle = "#d8dce4"; ctx.lineWidth = 1.3; ctx.beginPath();
   spec.f.forEach((f, i) => { const x = box.X(f), y = box.Y(spec.db[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.stroke();
-  ctx.fillStyle = "#8a93a3"; ctx.font = "11px system-ui";
+  ctx.fillStyle = "#8a93a3"; ctx.font = "11px Consolas, monospace";
   ctx.fillText("MHz from LO (" + spec.lo + ")", box.r - 110, box.b - 6);
 }
 
@@ -731,25 +819,25 @@ $("btnDisconnect").onclick = disconnect;
 $("btnScan").onclick = async () => {
   scanning = !scanning;
   $("btnScan").classList.toggle("on", !scanning);
-  $("btnScan").textContent = scanning ? "Scan" : "Scan (stopped)";
+  $("btnScan").textContent = scanning ? "scan" : "scan (stopped)";
   await send(scanning ? "scan on" : "scan off");
 };
 $("btnPause").onclick = () => {
-  if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
-  else { frozenEnd = null; $("btnPause").textContent = "Pause"; $("btnPause").classList.remove("on"); }
+  if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "resume"; $("btnPause").classList.add("on"); }
+  else { frozenEnd = null; $("btnPause").textContent = "pause"; $("btnPause").classList.remove("on"); }
 };
 $("btnFloor").onclick = () => pilots.forEach(p => { const s = windowStats(p, 2); if (s) p.floor = s.mean; });
 $("btnRec").onclick = () => {
   if (!recording) {
     recording = true;
     recRows = [];
-    $("btnRec").textContent = "Stop & save";
+    $("btnRec").textContent = "stop + save";
     $("btnRec").classList.add("on");
     $("recInfo").textContent = "recording...";
     return;
   }
   recording = false;
-  $("btnRec").textContent = "Record CSV";
+  $("btnRec").textContent = "rec csv";
   $("btnRec").classList.remove("on");
   const head = "seq," + pilots.map(p => `${p.name}_t_us,${p.name}_raw,${p.name}_filt,${p.name}_flags`).join(",");
   const blob = new Blob([head + "\n" + recRows.join("\n") + "\n"], { type: "text/csv" });
@@ -780,9 +868,10 @@ $("btnCapPilot").onclick = () => {
 if (!("serial" in navigator)) log("This browser has no Web Serial. Use Chrome or Edge.\n", "err");
 setConnected(false);
 
-let lastCards = 0;
+let lastCards = 0, lastWaterfall = 0;
 function frame(ts) {
   renderChart();
+  if (ts - lastWaterfall > 100) { renderWaterfall(); lastWaterfall = ts; }
   if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
   requestAnimationFrame(frame);
 }

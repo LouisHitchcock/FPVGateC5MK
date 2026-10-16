@@ -1,5 +1,6 @@
 #include "node.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -143,6 +144,30 @@ uint16_t viewSeq = 0;
 uint32_t nowUs() { return (uint32_t)esp_timer_get_time(); }
 void rhSample(unsigned slot, uint16_t value, uint32_t sampleUs);
 
+// RH's USB session ends only when the console asks: RH starts polling only
+// once a browser connects, so silence from it says nothing.
+void releaseRh() {
+    rh.end();
+    core->handle("F,0", nowUs());
+    rhActive = false;
+    core->onScanSample = nullptr;
+    isActive = false;
+    viewCount = 0;
+    hostlink::setBinaryMode(false);
+}
+
+// While RH has USB, a whole console command line (the dashboard's "status"
+// or "scan on", mp.py, a person) takes it back. RH's binary traffic can't
+// form one: only printable text, ended by '\n', starting with a known word.
+bool consoleCommand(const char* line) {
+    static const char* const kWords[] = {"help", "status", "regs", "scan", "node", "pilots", "gain", "timer"};
+    for (const char* word : kWords) {
+        size_t n = strlen(word);
+        if (!strncmp(line, word, n) && (line[n] == 0 || line[n] == ' ')) return true;
+    }
+    return false;
+}
+
 bool usbByte(uint8_t byte) {
     uint32_t nowMs = (uint32_t)(esp_timer_get_time() / 1000);
     if (!rhActive) {
@@ -154,6 +179,28 @@ bool usbByte(uint8_t byte) {
         rh.begin(nowMs);
         hostlink::setBinaryMode(true);
         confirmImage();
+    }
+    static char text[32];
+    static size_t textLen = 0;
+    if (byte == '\n') {
+        text[textLen] = 0;
+        // RH's single-byte reads can be printable (':', '"', '#', digits) and sit
+        // just before the command: it starts at a known word not after a letter.
+        const char* command = nullptr;
+        for (size_t i = 0; textLen < sizeof text - 1 && i < textLen && !command; ++i)
+            if ((i == 0 || !isalpha((unsigned char)text[i - 1])) && consoleCommand(text + i)) command = text + i;
+        textLen = 0;
+        if (command) {
+            releaseRh();
+            hostlink::pushLine(command);   // and run it
+            return true;
+        }
+    } else if (byte < 0x20 || byte >= 0x7F) {
+        textLen = 0;                    // RH's binary bytes: a command line starts after them
+    } else if (textLen < sizeof text - 1) {
+        text[textLen++] = (char)byte;
+    } else {
+        textLen = sizeof text - 1;      // too long: not a command until the next '\n'
     }
     rh.feed(byte, nowMs);
     return true;
@@ -295,15 +342,6 @@ void confirmImage() {
 }
 
 void step() {
-    if (rhActive && rh.expired((uint32_t)(esp_timer_get_time() / 1000))) {
-        rh.end();
-        core->handle("F,0", nowUs());
-        rhActive = false;
-        core->onScanSample = nullptr;
-        isActive = false;
-        viewCount = 0;
-        hostlink::setBinaryMode(false);
-    }
     if (onTrial && esp_timer_get_time() >= kTrialUs) esp_restart();   // back to the previous image
     core->step(nowUs());
     if (core->gain() != storedGain) {
@@ -370,13 +408,24 @@ void console(char* args) {
         float a = strtof(rest, nullptr);
         if (a > 0 && a <= 1) core->setAlpha(a);
         hostlink::say("node alpha %.2f\n", a);
+    } else if (!strcmp(sub, "reject")) {
+        // RH over USB: crossings that start with a jump off the floor (see rhusb::Reject).
+        rhusb::Reject r = rh.reject();
+        char* v = rest ? strtok(rest, " ") : nullptr;
+        if (v) r.riseMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) r.holdMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) r.quietMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) r.margin = (uint8_t)atoi(v);
+        rh.setReject(r);
+        hostlink::say("node reject: rise %u ms, hold %u ms, quiet %u ms, margin %u%s\n", r.riseMs, r.holdMs,
+                      r.quietMs, r.margin, r.riseMs ? "" : " (off)");
     } else if (!strcmp(sub, "cmd") && rest) {
         // Commands as if from the S3 (unframed payloads, ';' between them,
         // handled back to back like F then G on the UART), for bench tests.
         isActive = true;
         for (char* p = strtok(rest, ";"); p; p = strtok(nullptr, ";")) core->handle(p, nowUs());
     } else {
-        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|cmd <F,MHz|G,n|Q>]\n");
+        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|reject [rise hold quiet margin]|cmd <F,MHz|G,n|Q>]\n");
     }
 }
 
