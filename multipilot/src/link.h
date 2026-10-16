@@ -21,6 +21,9 @@ uint32_t drops();
 void setByteHandler(bool (*handler)(uint8_t));
 void setBinaryMode(bool enabled);
 bool sendRaw(const uint8_t* data, size_t size);
+// Queues one command line for the next pollLine(): one that arrived while the
+// byte handler had USB, and that ended its session.
+void pushLine(const char* line);
 
 }  // namespace hostlink
 

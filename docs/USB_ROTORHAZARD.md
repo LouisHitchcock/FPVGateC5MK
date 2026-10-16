@@ -78,8 +78,13 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   RSSI 1 with no crossing rather than showing the last reading as live.
 - USB does not take the radio from an already active S3/UART session. While RH
   owns it, UART commands are ignored and framed scanner output is suppressed.
-  Five seconds without a valid RH request releases USB ownership. `scan on`
-  resumes the dashboard scanner afterward. Power-cycle before switching an
+  From 1.2.2 RH keeps USB until the console asks for it back, however long it
+  stays quiet: RH only starts polling once a browser connects, and 1.2.1 and
+  earlier released USB after 5 s of silence and could not be reclaimed by RH,
+  which then failed with "Error setting WRITE_CURNODE_INDEX" or "Unable to fetch
+  revision code". A console command line (`scan on`, `status`, `node`, `help`,
+  `regs`, `pilots`, `gain` or `timer`, as sent by the dashboard or `mp.py`) ends
+  the RH session and runs. Power-cycle before switching an
   actively S3-controlled receiver to standalone USB.
 - Thresholds are held in RAM; RH supplies calibration from its saved profile.
   C5 receiver gain remains the existing stored node gain. USB firmware updating

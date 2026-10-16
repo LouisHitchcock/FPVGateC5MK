@@ -2,6 +2,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "driver/usb_serial_jtag.h"
 #include "frame.h"
@@ -17,6 +18,8 @@ bool lineOverflow = false;
 uint32_t dropCount = 0;
 bool binaryMode = false;
 bool (*byteHandler)(uint8_t) = nullptr;
+char pushed[160];
+bool linePushed = false;
 }  // namespace
 
 void begin() {
@@ -50,9 +53,18 @@ void say(const char* fmt, ...) {
 }
 
 const char* pollLine() {
+    if (linePushed) {
+        linePushed = false;
+        strncpy(line, pushed, sizeof line - 1);
+        line[sizeof line - 1] = 0;
+        return line;
+    }
     uint8_t c;
     while (usb_serial_jtag_read_bytes(&c, 1, 0) == 1) {
-        if (byteHandler && (binaryMode || (!lineLen && !lineOverflow)) && byteHandler(c)) continue;
+        if (byteHandler && (binaryMode || (!lineLen && !lineOverflow)) && byteHandler(c)) {
+            if (linePushed) return pollLine();   // the handler ended its session with a command
+            continue;
+        }
         if (c == '\r' || c == '\n') {
             if (lineLen == 0 && !lineOverflow) continue;
             bool bad = lineOverflow;
@@ -76,6 +88,12 @@ void setBinaryMode(bool enabled) {
     binaryMode = enabled;
     lineLen = 0;
     lineOverflow = false;
+}
+
+void pushLine(const char* text) {
+    strncpy(pushed, text, sizeof pushed - 1);
+    pushed[sizeof pushed - 1] = 0;
+    linePushed = true;
 }
 
 bool sendRaw(const uint8_t* data, size_t size) {
