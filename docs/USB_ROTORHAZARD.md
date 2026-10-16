@@ -71,6 +71,27 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 - After any frequency change no crossing starts for 100 ms, and NodePeak and
   NodeNadir ignore those samples: the scan restarts with empty filters, and a
   lone settling sample could otherwise blip the crossing flag or count a pass.
+- A VTX powering on or changing channel jumps from the noise floor past
+  EnterAt in a few ms, and often lights up neighbouring channels for 10-80 ms
+  on the way. A quad flying in takes far longer to rise that far. So a
+  crossing that starts within 30 ms of leaving the floor, after at least 100 ms
+  at the floor (within 16 levels of the seat's nadir), is hidden from RH for
+  90 ms and dropped if it ends sooner. One that lasts becomes a normal
+  crossing, timed from its peak as usual. A dropped jump is left out of RH's
+  RSSI, history and NodePeak too, so its graph doesn't show it; one that lasts
+  appears up to 90 ms late, at its own time. The same goes for a jump that
+  stays under EnterAt: anything that rises twice the margin off the floor (or
+  to EnterAt, if that is lower) that fast and falls back within 90 ms is left
+  out.
+  `node reject [rise hold quiet margin]` on the console changes the four
+  values (`node reject 0` turns it off) until the C5 restarts. On a bench
+  recording on 2026-10-16 this dropped 116 of 128 VTX start-up and
+  channel-change bursts and no passes.
+- The crossing flag RH reads stays set for 250 ms after a pass ends. RH reads
+  it about every 100 ms and a fast pass can be over EnterAt for less, so
+  without this most fast passes never showed as crossings on its graph. Lap
+  counts and times are unchanged, and RH's force-end (race start and stop)
+  clears it at once.
 - Invalid checksums, unsupported frequencies and invalid seat indexes do not
   change settings. Thresholds are 1-254; detection is suspended while EnterAt
   is not higher than ExitAt. Failed captures do not produce timing samples.

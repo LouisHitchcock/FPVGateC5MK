@@ -81,7 +81,9 @@ void tests() {
     CHECK(stats.size() == 16);
     CHECK(stats[0] == 1 && stats[1] == 0 && stats[2] == 5);  // plateau middle at 1005
     // RSSI shown: the highest sample of the last ~250 ms (600 / 4), not the last (300 / 4).
-    CHECK(stats[3] == 150 && stats[5] == 150 && !(stats[8] & 1));
+    // The pass ended at 1008 but still shows as crossing for RH's slower reads.
+    CHECK(stats[3] == 150 && stats[5] == 150 && (stats[8] & 1));
+    write(core, 0x78, {0});
     // Split reads are latched, even if samples or a new pass arrive in between.
     read(core, port, 0x0D, 1010);
     core.sample(5, 800, 1011);
@@ -146,6 +148,9 @@ void historyTests() {
     Port port;
     rhusb::Core core(port);
     core.begin(0);
+    rhusb::Reject off;
+    off.riseMs = 0;  // short peaks straight off the floor (see rejectTests)
+    core.setReject(off);
     write(core, 0x7A, {2});
     write(core, 0x71, {200});  // no crossings here: history only
     write(core, 0x72, {190});
@@ -185,19 +190,22 @@ void shownAndSettleTests() {
     Port port;
     rhusb::Core core(port);
     core.begin(0);
+    rhusb::Reject off;
+    off.riseMs = 0;  // short peaks straight off the floor (see rejectTests)
+    core.setReject(off);
     write(core, 0x7A, {1}, 0);
     write(core, 0x71, {100}, 0);
     write(core, 0x72, {80}, 0);
-    // Samples up to 'now' (a 3 ms peak at 500 ms), then the RSSI shown at 'now'.
+    // Samples up to 'now' (a 3 ms peak at 500 ms, under EnterAt), then the RSSI shown at 'now'.
     uint32_t sampled = 200;
     auto shown = [&](uint32_t now) {
-        for (; sampled <= now; ++sampled) core.sample(1, sampled >= 500 && sampled < 503 ? 480 : 120, sampled);
+        for (; sampled <= now; ++sampled) core.sample(1, sampled >= 500 && sampled < 503 ? 380 : 120, sampled);
         return read(core, port, 0x05, now)[3];
     };
     // The peak shows from then until ~250 ms later, then the floor.
     CHECK(shown(450) == 30);
-    CHECK(shown(510) == 120);
-    CHECK(shown(700) == 120);
+    CHECK(shown(510) == 95);
+    CHECK(shown(700) == 95);
     CHECK(shown(760) == 30);
     CHECK(shown(999) == 30);
     // Settling: a lone high sample right after a frequency change isn't a pass.
@@ -212,6 +220,105 @@ void shownAndSettleTests() {
     core.sample(1, 600, 1120);
     core.sample(1, 120, 1121);
     CHECK(read(core, port, 0x05, 1121)[0] == (uint8_t)(laps + 1));
+}
+
+void rejectTests() {
+    Port port;
+    rhusb::Core core(port);
+    core.begin(0);
+    write(core, 0x7A, {1}, 0);
+    write(core, 0x71, {100}, 0);
+    write(core, 0x72, {80}, 0);
+    // One sample a ms; the floor is level 30 (raw 120), a VTX nearby 150.
+    uint32_t t = 200;
+    auto run = [&](uint32_t ms, uint16_t raw) { for (uint32_t end = t + ms; t < end; ++t) core.sample(1, raw, t); };
+    auto laps = [&]() { return read(core, port, 0x05, t)[0]; };
+    auto flagged = [&]() { return (read(core, port, 0x05, t)[8] & 1) != 0; };
+    run(300, 120);
+    uint8_t before = laps();
+    // A VTX powering on: floor, then straight past EnterAt for 60 ms. RH never
+    // sees a crossing and no lap counts.
+    run(30, 600);
+    CHECK(!flagged());
+    CHECK(read(core, port, 0x05, t)[3] == 30);  // nor on its graph
+    run(30, 600);
+    run(30, 120);
+    auto after = read(core, port, 0x05, t);
+    CHECK(after[3] == 30 && after[4] == 30 && after[11] == 30);  // RSSI, node peak, history
+    run(270, 120);
+    CHECK(laps() == before);
+    CHECK(read(core, port, 0x05, t)[5] == 1);  // pass peak untouched
+    // Nor is a jump that stays under EnterAt (level 95 here).
+    run(40, 380);
+    CHECK(read(core, port, 0x05, t)[3] == 30);
+    run(10, 120);
+    CHECK(read(core, port, 0x05, t)[3] == 30);
+    run(300, 120);
+    // The same jump that stays: shown from 90 ms, then a lap timed at its peak.
+    run(80, 600);
+    CHECK(!flagged());
+    run(20, 600);
+    CHECK(flagged());
+    CHECK(read(core, port, 0x05, t)[3] == 150);  // shown once it lasts
+    run(100, 520);
+    run(300, 120);
+    CHECK(laps() == (uint8_t)(before + 1));
+    CHECK(read(core, port, 0x05, t)[5] == 150);
+    // A fast pass rises over ~50 ms from the floor to EnterAt: counted
+    // however short it is.
+    for (int i = 0; i < 120; ++i) core.sample(1, (uint16_t)(120 + i * 4), t++);
+    run(10, 600);
+    run(300, 120);
+    CHECK(laps() == (uint8_t)(before + 2));
+    // A jump without 100 ms of floor before it (a pass after a dip) counts.
+    run(60, 360);
+    run(50, 120);
+    run(10, 600);
+    run(300, 120);
+    CHECK(laps() == (uint8_t)(before + 3));
+    // A 20 ms pass shows as crossing for 250 ms after it, for RH's ~100 ms
+    // reads; RH's force-end clears that at once.
+    run(300, 300);
+    run(20, 600);
+    run(100, 300);
+    CHECK(flagged());
+    run(160, 300);
+    CHECK(!flagged());
+    run(20, 600);
+    run(10, 300);
+    write(core, 0x78, {1}, t);
+    CHECK(!flagged());
+    CHECK(laps() == (uint8_t)(before + 5));
+    // Rise 0 turns the rejection off.
+    rhusb::Reject off;
+    off.riseMs = 0;
+    core.setReject(off);
+    run(10, 600);
+    run(300, 120);
+    CHECK(laps() == (uint8_t)(before + 6));
+}
+
+// EnterAt set just above the floor: a small jump past it is still a jump.
+void lowEnterTests() {
+    Port port;
+    rhusb::Core core(port);
+    core.begin(0);
+    write(core, 0x7A, {0}, 0);
+    write(core, 0x71, {45}, 0);
+    write(core, 0x72, {40}, 0);
+    uint32_t t = 200;
+    auto run = [&](uint32_t ms, uint16_t raw) { for (uint32_t end = t + ms; t < end; ++t) core.sample(0, raw, t); };
+    run(300, 120);  // floor 30
+    uint8_t before = read(core, port, 0x05, t)[0];
+    run(40, 220);   // 55: 25 over the floor, 10 over EnterAt
+    CHECK(read(core, port, 0x05, t)[3] == 30);
+    run(300, 120);
+    CHECK(read(core, port, 0x05, t)[0] == before);
+    // The same level reached over 100 ms is a pass.
+    for (int i = 0; i < 100; ++i) core.sample(0, (uint16_t)(120 + i), t++);
+    run(300, 220);
+    run(300, 120);
+    CHECK(read(core, port, 0x05, t)[0] == (uint8_t)(before + 1));
 }
 
 // Line-based simulator for Python tests driving RH's actual serial-node client.
@@ -247,6 +354,8 @@ int main(int argc, char** argv) {
     tests();
     historyTests();
     shownAndSettleTests();
+    rejectTests();
+    lowEnterTests();
     printf("RH USB: %d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;
 }

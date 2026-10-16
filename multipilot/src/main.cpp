@@ -592,7 +592,7 @@ void handle(char* line) {
         say("status | regs | scan on|off | pilots rb|<MHz,...> | gain N | offset MHz | n N | settle us |\n"
             "alpha A | tune pll|full | dump direct|stock | bw 0|1 | timer | cmp [count] |\n"
             "noden N | nodeskip 0-3 | hopprof MHz [jump] [skip] | hopspikes MHz [count] [how] | bandshape MHz |\n"
-            "capture MHz [n] | sramtest | node [on|off|echo on|off|map lo hi|alpha A|cmd ...]\n");
+            "capture MHz [n] | sramtest | node [on|off|echo on|off|map lo hi|alpha A|reject ...|cmd ...]\n");
     } else if (!strcmp(cmd, "status")) {
         printStatus();
     } else if (!strcmp(cmd, "regs")) {

@@ -408,13 +408,24 @@ void console(char* args) {
         float a = strtof(rest, nullptr);
         if (a > 0 && a <= 1) core->setAlpha(a);
         hostlink::say("node alpha %.2f\n", a);
+    } else if (!strcmp(sub, "reject")) {
+        // RH over USB: crossings that start with a jump off the floor (see rhusb::Reject).
+        rhusb::Reject r = rh.reject();
+        char* v = rest ? strtok(rest, " ") : nullptr;
+        if (v) r.riseMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) r.holdMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) r.quietMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) r.margin = (uint8_t)atoi(v);
+        rh.setReject(r);
+        hostlink::say("node reject: rise %u ms, hold %u ms, quiet %u ms, margin %u%s\n", r.riseMs, r.holdMs,
+                      r.quietMs, r.margin, r.riseMs ? "" : " (off)");
     } else if (!strcmp(sub, "cmd") && rest) {
         // Commands as if from the S3 (unframed payloads, ';' between them,
         // handled back to back like F then G on the UART), for bench tests.
         isActive = true;
         for (char* p = strtok(rest, ";"); p; p = strtok(nullptr, ";")) core->handle(p, nowUs());
     } else {
-        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|cmd <F,MHz|G,n|Q>]\n");
+        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|reject [rise hold quiet margin]|cmd <F,MHz|G,n|Q>]\n");
     }
 }
 
