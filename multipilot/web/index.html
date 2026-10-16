@@ -47,7 +47,7 @@
   .card .flags { font-size: 11px; color: var(--bad); min-height: 15px; }
   .chartwrap { position: relative; }
   canvas { width: 100%; display: block; }
-  #chart { height: 340px; } #spec { height: 280px; }
+  #chart { height: 340px; } #spec { height: 280px; } #wf { height: 300px; }
   .tip { position: absolute; pointer-events: none; background: rgba(15,17,21,.94); border: 1px solid var(--line);
          border-radius: 5px; padding: 6px 8px; font-size: 12px; display: none; white-space: nowrap;
          font-variant-numeric: tabular-nums; }
@@ -95,6 +95,11 @@
   <section>
     <h2>RSSI (dB re 1 LSB²)</h2>
     <div class="chartwrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
+  </section>
+
+  <section>
+    <h2>Waterfall <span class="dim" style="text-transform:none">· every channel over the chart window, newest at the top; each cell is the highest reading in its slice</span></h2>
+    <div class="chartwrap"><canvas id="wf"></canvas><div class="tip" id="wfTip"></div></div>
   </section>
 
   <section>
@@ -548,6 +553,100 @@ function drawHover(box, v) {
 $("chart").addEventListener("mousemove", e => { hoverX = e.offsetX; });
 $("chart").addEventListener("mouseleave", () => { hoverX = null; });
 
+// ---- waterfall -----------------------------------------------------------------
+// Every channel down the chart window, newest at the top. A cell is the highest
+// reading in its time slice, so a burst shorter than a slice still shows.
+const WF_STOPS = [[0, [10, 14, 40]], [0.35, [20, 110, 200]], [0.6, [50, 205, 200]], [0.8, [250, 215, 60]], [1, [255, 255, 255]]];
+function wfColor(x) {   // dark blue -> cyan -> yellow -> white over 0..1
+  x = Math.min(1, Math.max(0, x));
+  for (let i = 1; i < WF_STOPS.length; i++) {
+    const [b, cb] = WF_STOPS[i], [a, ca] = WF_STOPS[i - 1];
+    if (x <= b) return ca.map((c, k) => Math.round(c + (cb[k] - c) * (x - a) / (b - a)));
+  }
+  return WF_STOPS[WF_STOPS.length - 1][1];
+}
+
+let wf = null;   // the last render, for the tooltip: { box, rows, n, slice, db }
+const wfImage = document.createElement("canvas");
+
+function renderWaterfall() {
+  const cv = $("wf"), { ctx, W, H } = fitCanvas(cv);
+  ctx.clearRect(0, 0, W, H);
+  const v = chartView(), n = pilots.length;
+  wf = null;
+  if (!isFinite(v.tEnd) || !n) {
+    ctx.fillStyle = "#8a93a3"; ctx.font = "13px system-ui";
+    ctx.fillText("No readings yet.", 40, H / 2);
+    return;
+  }
+  const box = { l: 40, r: W - 58, t: 4, b: H - 18 };
+  const rows = Math.max(1, Math.round(box.b - box.t)), slice = v.span / rows;
+  const db = new Float32Array(rows * n).fill(NaN);
+  pilots.forEach((p, k) => {
+    const a = v.mode === "filt" ? p.filt : p.raw;
+    for (let i = lowerBound(p.t, v.t0); i < p.t.length && p.t[i] <= v.tEnd; i++) {
+      const r = Math.floor((v.tEnd - p.t[i]) / slice), j = r * n + k;
+      if (r < 0 || r >= rows || isNaN(a[i])) continue;
+      if (!(db[j] >= a[i])) db[j] = a[i];
+    }
+  });
+  let lo = -5, hi = 40;
+  if ($("selY").value === "auto") {
+    lo = Infinity; hi = -Infinity;
+    db.forEach(x => { if (!isNaN(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); } });
+    if (!(hi > lo)) { lo = -5; hi = 40; }
+  }
+  wfImage.width = n; wfImage.height = rows;
+  const ictx = wfImage.getContext("2d"), img = ictx.createImageData(n, rows);
+  for (let j = 0; j < rows * n; j++) {
+    const c = isNaN(db[j]) ? [15, 17, 21] : wfColor((db[j] - lo) / (hi - lo));
+    img.data[4 * j] = c[0]; img.data[4 * j + 1] = c[1]; img.data[4 * j + 2] = c[2]; img.data[4 * j + 3] = 255;
+  }
+  ictx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(wfImage, box.l, box.t, box.r - box.l, box.b - box.t);
+  // Channel names under their columns, and gaps between the columns.
+  const colW = (box.r - box.l) / n;
+  ctx.font = "11px system-ui";
+  pilots.forEach((p, k) => {
+    ctx.fillStyle = COLORS[k % COLORS.length];
+    ctx.fillText(p.name, box.l + colW * (k + 0.5) - ctx.measureText(p.name).width / 2, box.b + 13);
+    if (k) { ctx.fillStyle = "#0f1115"; ctx.fillRect(box.l + colW * k - 1, box.t, 2, box.b - box.t); }
+  });
+  // Seconds ago, down the left.
+  ctx.fillStyle = "#8a93a3";
+  const ts = niceStep(v.span, 5);
+  for (let s = 0; s <= v.span + 1e-9; s += ts) ctx.fillText((s ? "-" : "") + s.toFixed(0) + " s", 2, box.t + s / slice + 4);
+  // The colour scale, down the right.
+  const lx = box.r + 10;
+  for (let y = box.t; y < box.b; y++) {
+    const c = wfColor(1 - (y - box.t) / (box.b - box.t));
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.fillRect(lx, y, 10, 1);
+  }
+  ctx.fillStyle = "#8a93a3";
+  const ds = niceStep(hi - lo, 5);
+  for (let d = Math.ceil(lo / ds) * ds; d <= hi; d += ds) {
+    ctx.fillText(d.toFixed(0), lx + 13, box.b - (d - lo) / (hi - lo) * (box.b - box.t) + 4);
+  }
+  wf = { box, rows, n, slice, db, colW };
+}
+
+$("wf").addEventListener("mousemove", e => {
+  const tip = $("wfTip");
+  if (!wf) { tip.style.display = "none"; return; }
+  const r = $("wf").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const k = Math.floor((x - wf.box.l) / wf.colW), row = Math.floor(y - wf.box.t);
+  if (k < 0 || k >= wf.n || row < 0 || row >= wf.rows) { tip.style.display = "none"; return; }
+  const d = wf.db[row * wf.n + k], p = pilots[k];
+  tip.innerHTML = `<span class="sw" style="background:${COLORS[k % COLORS.length]}"></span>${p.name} · ${p.mhz} MHz<br>` +
+    `${(row * wf.slice).toFixed(1)} s ago · ${isNaN(d) ? "no reading" : d.toFixed(1) + " dB"}`;
+  tip.style.display = "block";
+  tip.style.left = Math.min(x + 14, r.width - 170) + "px";
+  tip.style.top = (y + 10) + "px";
+});
+$("wf").addEventListener("mouseleave", () => { $("wfTip").style.display = "none"; });
+
 // ---- capture spectrum ----------------------------------------------------------
 let cap = null;      // { id, lo, gain, total, words: Uint32Array, got }
 let spec = null;     // { f[], db[], lo, pilots[] }
@@ -780,9 +879,10 @@ $("btnCapPilot").onclick = () => {
 if (!("serial" in navigator)) log("This browser has no Web Serial. Use Chrome or Edge.\n", "err");
 setConnected(false);
 
-let lastCards = 0;
+let lastCards = 0, lastWaterfall = 0;
 function frame(ts) {
   renderChart();
+  if (ts - lastWaterfall > 100) { renderWaterfall(); lastWaterfall = ts; }
   if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
   requestAnimationFrame(frame);
 }
