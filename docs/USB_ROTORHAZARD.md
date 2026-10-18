@@ -45,7 +45,7 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   reads nothing for 2 s before its revision request. Output sent in that time
   was held by the host's USB serial driver, which clearing the port's input
   does not empty, so RH read scanner data as its revision code, failed, reopened
-  the port and reset the C5 again. From 1.2.2-rc.4 the scanner waits, scanner
+  the port and reset the C5 again. From 1.2.2 the scanner waits, scanner
   output still queued when RH takes USB is dropped, and the bootloader logs
   only warnings, leaving a few ROM lines that RH clears.
 - Boot still opens the existing USB scanner. RH's revision request switches
@@ -133,9 +133,9 @@ hardware; see [TESTING.md](TESTING.md#linux-serial-integration-no-pi-or-c5-requi
 That was not the only cause on a Raspberry Pi. With 1.2.2-rc.3 on a C5-Zero, RH
 4.4.0 on a Pi 4 (Raspberry Pi OS Bookworm) still failed discovery: each
 connection attempt reset the C5, and the scanner output it then sent arrived
-ahead of the revision reply. 1.2.2-rc.4 on the same setup was found at the first
-attempt in each of three server starts, with eight seats and no communication
-errors; see [TESTING.md](TESTING.md#raspberry-pi-discovery).
+ahead of the revision reply. 1.2.2 on the same setup was found at the first
+attempt in all seven server starts (as 1.2.2-rc.4 and as the release image),
+with eight seats and no communication errors; see [TESTING.md](TESTING.md#raspberry-pi-discovery).
 
 Run the portable C++ tests with `bash test/run.sh` from `multipilot`.
 For integration tests, install RH's dependencies, set `RH_SOURCE` to a standard

@@ -9,7 +9,7 @@ marks:
 | `xiaoc5/` | Seeed Studio XIAO ESP32-C5 |
 
 The two boards use different link pins, so flash the folder for your board.
-Each image carries its board in its version (`1.2.2-rc.4+c5zero`), and FPVGate
+Each image carries its board in its version (`1.2.2+c5zero`), and FPVGate
 won't send an image to a C5 of the other board.
 
 ## First flash, over USB
@@ -57,7 +57,7 @@ updater on a C5.
 
 Both boards have built binaries. Waveshare USB discovery and local timing
 have been tested; physical XIAO USB validation is pending. See
-[1.2.2-rc.4 release notes](RELEASE_NOTES.md) for the validation scope.
+[1.2.2 release notes](RELEASE_NOTES.md) for the validation scope.
 
 `SHA256SUMS.txt` contains hashes using the board-prefixed GitHub asset names.
 The repository's `release/<board>/` files contain the same bytes.

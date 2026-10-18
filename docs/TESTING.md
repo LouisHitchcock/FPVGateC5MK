@@ -81,7 +81,7 @@ opening without the reset returned `25 24 49` at once. The bytes came from the
 C5's own scanner output, held by the host's USB serial driver while RH waited.
 ModemManager was running but did not open the port.
 
-With 1.2.2-rc.4 the same sequence returned `25 24 49` at the first read in five
+With 1.2.2 (tested as 1.2.2-rc.4, then the release image) the same sequence returned `25 24 49` at the first read in five
 of five runs, only 428 bytes (the ROM's boot lines) arrived before the host
 spoke, and RH 4.4.0 found eight seats at API 36 at the first attempt in three
 of three server starts with no read or write errors. `test_link.cpp` checks that
