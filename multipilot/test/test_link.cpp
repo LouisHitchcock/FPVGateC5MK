@@ -9,8 +9,19 @@
 #include "driver/usb_serial_jtag.h"
 
 static std::deque<uint8_t> input;
-static std::vector<uint8_t> output;
-int usb_serial_jtag_driver_install(const usb_serial_jtag_driver_config_t*) { return 0; }
+static std::vector<uint8_t> output;   // written, not yet read by the host
+static bool installed = false;
+int usb_serial_jtag_driver_install(const usb_serial_jtag_driver_config_t*) {
+    installed = true;
+    return 0;
+}
+// As the real driver: its TX ring buffer, and so anything still queued, goes.
+int usb_serial_jtag_driver_uninstall() {
+    installed = false;
+    output.clear();
+    return 0;
+}
+bool usb_serial_jtag_is_driver_installed() { return installed; }
 int usb_serial_jtag_read_bytes(void* data, size_t size, uint32_t) {
     size_t n = 0;
     while (n < size && !input.empty()) {
@@ -61,7 +72,20 @@ static void probe() {
 int main() {
     hostlink::begin();
     hostlink::setByteHandler(handleByte);
+    // Nothing goes out after boot until the host speaks: on Linux opening the
+    // port resets the C5, and RH reads nothing for 2 s before its probe.
+    hostlink::say("FPVGate C5MK ready\n");
+    assert(output.empty());
     reset();
+    probe();
+
+    // Scanner output still queued when RH takes USB is dropped, so its first
+    // bytes back are the reply (a host already reading, no reset on open).
+    reset();
+    queue("status\n");
+    assert(hostlink::pollLine());
+    hostlink::say("scanner output\n");
+    assert(!output.empty());
     probe();
 
     reset();
@@ -112,5 +136,5 @@ int main() {
     hostlink::pushLine("scan on");
     line = hostlink::pollLine();
     assert(line && !strcmp(line, "scan on"));
-    puts("USB line parser: 9 scenarios passed");
+    puts("USB line parser: 11 scenarios passed");
 }

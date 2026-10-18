@@ -8,7 +8,9 @@
 
 PORT is the C5's USB serial port, for example COM3 or /dev/ttyACM0.
 
-The port is opened with DTR and RTS low so the C5 is not reset.
+The port is opened with DTR and RTS low so the C5 is not reset on Windows. On
+Linux opening the port resets it anyway. After a reset the C5 sends nothing
+until the host does, so `console` shows nothing until a line is typed.
 """
 import argparse
 import math

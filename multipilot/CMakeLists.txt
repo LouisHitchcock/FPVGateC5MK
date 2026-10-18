@@ -9,7 +9,7 @@ if(NOT DEFINED NODE_BOARD)
     set(NODE_BOARD c5zero)
 endif()
 if(NOT DEFINED C5MK_VERSION)
-    set(C5MK_VERSION 1.2.2-rc.3)
+    set(C5MK_VERSION 1.2.2-rc.4)
 endif()
 set(PROJECT_VER "${C5MK_VERSION}+${NODE_BOARD}")
 

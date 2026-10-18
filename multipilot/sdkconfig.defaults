@@ -23,6 +23,10 @@ CONFIG_FREERTOS_HZ=1000
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 # WARN also silences adctrig's phy_printf (it logs at INFO).
 CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# The bootloader also prints to native USB, about 3 KB at INFO. On Linux
+# opening the port resets the C5 and RH reads nothing for 2 s, so that is
+# held unread; at WARN only the ROM's few lines remain (link.cpp).
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
 # The scan task only yields every 50 cycles.
 CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
 

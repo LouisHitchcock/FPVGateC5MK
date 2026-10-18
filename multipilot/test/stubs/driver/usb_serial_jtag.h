@@ -10,3 +10,5 @@ struct usb_serial_jtag_driver_config_t {
 int usb_serial_jtag_driver_install(const usb_serial_jtag_driver_config_t*);
 int usb_serial_jtag_read_bytes(void*, size_t, uint32_t);
 int usb_serial_jtag_write_bytes(const void*, size_t, uint32_t);
+int usb_serial_jtag_driver_uninstall(void);
+bool usb_serial_jtag_is_driver_installed(void);

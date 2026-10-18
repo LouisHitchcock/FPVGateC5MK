@@ -67,6 +67,27 @@ recovered after a newline; the fixed parser passed all tested input conditions
 and three consecutive discovery sessions without a device reset. This confirms
 the failure mechanism, but does not identify what sent bytes on the reported Pi.
 
+## Raspberry Pi discovery
+
+On 2026-10-18 a Raspberry Pi 4 running Raspberry Pi OS Lite (Bookworm, 64-bit)
+and stock RotorHazard 4.4.0 was connected to a Waveshare C5-Zero over USB.
+
+With 1.2.2-rc.3, RH's discovery failed five times and then accepted one node
+with API level 254. Opening the port the way RH does (DTR and RTS cleared, then
+opened) printed the bootloader banner every time: the C5 resets on each open.
+Repeating RH's sequence (open, 2 s without reading, clear input, send `0x22`,
+three reads) returned scanner records on all three reads in each of three runs;
+opening without the reset returned `25 24 49` at once. The bytes came from the
+C5's own scanner output, held by the host's USB serial driver while RH waited.
+ModemManager was running but did not open the port.
+
+With 1.2.2-rc.4 the same sequence returned `25 24 49` at the first read in five
+of five runs, only 428 bytes (the ROM's boot lines) arrived before the host
+spoke, and RH 4.4.0 found eight seats at API 36 at the first attempt in three
+of three server starts with no read or write errors. `test_link.cpp` checks that
+nothing is sent before the host speaks and that queued output is dropped when RH
+takes USB.
+
 ## Firmware builds
 
 From `multipilot`:

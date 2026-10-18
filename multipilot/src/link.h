@@ -18,7 +18,8 @@ void say(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 const char* pollLine();
 uint32_t drops();
 // Optional binary endpoint checked before console lines, including partial or
-// overflowed lines. A handler claiming USB must call setBinaryMode(true).
+// overflowed lines. A handler claiming USB must call setBinaryMode(true),
+// which discards output still queued for the host.
 void setByteHandler(bool (*handler)(uint8_t));
 void setBinaryMode(bool enabled);
 bool sendRaw(const uint8_t* data, size_t size);

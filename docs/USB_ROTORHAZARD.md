@@ -38,6 +38,16 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 
 ## Firmware behaviour
 
+- After a reset the C5 sends nothing on USB until the host sends a byte; the
+  dashboard and `mp.py` send a command first, and `mp.py console` stays quiet
+  until something is typed. On Linux, opening the port resets the C5 (the
+  kernel raises DTR and RTS, then the serial library lowers DTR first), and RH
+  reads nothing for 2 s before its revision request. Output sent in that time
+  was held by the host's USB serial driver, which clearing the port's input
+  does not empty, so RH read scanner data as its revision code, failed, reopened
+  the port and reset the C5 again. From 1.2.2-rc.4 the scanner waits, scanner
+  output still queued when RH takes USB is dropped, and the bootloader logs
+  only warnings, leaving a few ROM lines that RH clears.
 - Boot still opens the existing USB scanner. RH's revision request switches
   USB to its standard binary serial protocol, with eight independent seats. From
   1.2.2 it reports node API 36, RH's newest, so RH no longer shows "Node firmware
@@ -119,6 +129,13 @@ code" repeatedly even after RH restarted. Linux PTY integration tests reproduce
 this failure with the original parser and verify discovery after partial input,
 overflow and tty echo with the fix. These tests do not validate physical Pi USB
 hardware; see [TESTING.md](TESTING.md#linux-serial-integration-no-pi-or-c5-required).
+
+That was not the only cause on a Raspberry Pi. With 1.2.2-rc.3 on a C5-Zero, RH
+4.4.0 on a Pi 4 (Raspberry Pi OS Bookworm) still failed discovery: each
+connection attempt reset the C5, and the scanner output it then sent arrived
+ahead of the revision reply. 1.2.2-rc.4 on the same setup was found at the first
+attempt in each of three server starts, with eight seats and no communication
+errors; see [TESTING.md](TESTING.md#raspberry-pi-discovery).
 
 Run the portable C++ tests with `bash test/run.sh` from `multipilot`.
 For integration tests, install RH's dependencies, set `RH_SOURCE` to a standard
