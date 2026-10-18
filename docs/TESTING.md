@@ -26,11 +26,46 @@ bash test/run.sh
 The USB endpoint has its own `test_rh_usb.cpp` checks for API 36 discovery, seats turned off,
 checksums, seat selection, frequency/threshold isolation, peak-plateau timing,
 split snapshot reads, counter/time rollover, stale samples and partial writes.
+`test_link.cpp` runs the actual USB line parser against a simulated driver and
+the RH endpoint. It checks revision discovery after partial or overflowed
+console input, ordinary console commands, and rejected USB takeover while UART
+owns the radio. It does not reproduce Linux port probing or tty echo itself.
 `test_rh_usb.py` exercises RH's actual serial client against that endpoint;
 see [USB_ROTORHAZARD.md](USB_ROTORHAZARD.md) for its environment and command.
 
 USB and UART ownership switching still needs a physical board test. Passing
 the portable tests does not establish RF performance or USB driver behaviour.
+
+## Linux serial integration (no Pi or C5 required)
+
+On Linux, with `g++`, Python 3, `pyserial` and `gevent` installed:
+
+```text
+export RH_SOURCE=/path/to/RotorHazard-4.5.0-beta.1
+cd multipilot
+bash test/run_linux_usb.sh
+```
+
+This compiles the production USB line parser and RH protocol endpoint behind a
+Linux PTY driver. Stock RH discovery uses real pySerial reads, Linux termios,
+timeouts and retries. Tests cover a clean start, unterminated probe input,
+overflowed input, actual tty echo, fragmented replies, and repeated discovery
+with the device process left running. The original parser guard is compiled
+as a control: discovery must fail twice after partial input, then recover after
+a newline. The fixed parser must discover all eight API 36 seats and read back
+their independent frequencies.
+
+Only the RH discovery/client layer is restarted; the full web server is not
+launched. This is Linux software-path validation, not Raspberry Pi emulation.
+The radio and node.cpp ownership glue are simulated; PTYs do not model physical
+USB, CDC control lines, USB enumeration, the cdc_acm driver or Pi-specific timing.
+
+Validation on 2026-10-18: all six tests passed in 61.063 s under Docker/WSL2
+Linux x86_64, Python 3.12.3 and stock RotorHazard 4.5.0-beta.1. The original
+parser logged "Unable to fetch revision code" on both discovery attempts and
+recovered after a newline; the fixed parser passed all tested input conditions
+and three consecutive discovery sessions without a device reset. This confirms
+the failure mechanism, but does not identify what sent bytes on the reported Pi.
 
 ## Firmware builds
 

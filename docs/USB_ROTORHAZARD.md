@@ -113,6 +113,13 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 
 ## Checks
 
+From 1.2.2-rc.3, an unfinished or overflowed USB console line no longer blocks
+RH's revision request. Earlier builds could report "Unable to fetch revision
+code" repeatedly even after RH restarted. Linux PTY integration tests reproduce
+this failure with the original parser and verify discovery after partial input,
+overflow and tty echo with the fix. These tests do not validate physical Pi USB
+hardware; see [TESTING.md](TESTING.md#linux-serial-integration-no-pi-or-c5-required).
+
 Run the portable C++ tests with `bash test/run.sh` from `multipilot`.
 For integration tests, install RH's dependencies, set `RH_SOURCE` to a standard
 RH checkout (4.5.0-beta.1 was tested), and run:

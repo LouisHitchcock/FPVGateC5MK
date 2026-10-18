@@ -61,7 +61,12 @@ const char* pollLine() {
     }
     uint8_t c;
     while (usb_serial_jtag_read_bytes(&c, 1, 0) == 1) {
-        if (byteHandler && (binaryMode || (!lineLen && !lineOverflow)) && byteHandler(c)) {
+        // A host probe (or a Linux tty echo) can leave an unterminated console
+        // line behind. Always offer bytes to the binary endpoint: it recognises
+        // RH's revision request and clears the console buffer when it takes USB.
+        // Otherwise every RH retry would extend that line forever, even across
+        // server restarts. The endpoint rejects ordinary console bytes.
+        if (byteHandler && byteHandler(c)) {
             if (linePushed) return pollLine();   // the handler ended its session with a command
             continue;
         }
