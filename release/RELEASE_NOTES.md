@@ -1,25 +1,38 @@
-# C5MK V1.2.2-RC.3: recover RotorHazard USB discovery
+# C5MK V1.2.2-RC.4: RotorHazard USB discovery on Linux and Raspberry Pi
 
 Release candidate for Waveshare ESP32-C5-Zero and Seeed XIAO ESP32-C5.
-Includes the USB timing improvements from 1.2.2-rc.1 and fixes discovery after
-unexpected serial input. The UART link and 1.1.0 partition layout are unchanged.
+Fixes RotorHazard failing to find the C5 over USB on Linux, including the
+Raspberry Pi. Includes everything from 1.2.2-rc.3 and 1.2.2-rc.1. The UART link
+and 1.1.0 partition layout are unchanged.
 
 ## USB discovery fix
 
-An unfinished console line could prevent the C5 from recognising RotorHazard's
-revision request. RH then reported "Unable to fetch revision code for serial
-node". Restarting RH left the partial line intact, so discovery kept failing
-even though the C5 had finished booting.
+On Linux, RotorHazard could report "Unable to fetch revision code for serial
+node" for a C5 on 1.2.2-rc.3 or earlier, or find one node with API level 254
+instead of eight seats.
 
-The revision request can now claim USB after partial or overflowed console
-input. Ordinary console commands still work, and an active S3/UART controller
-still prevents USB takeover.
+Opening the C5's USB port on Linux resets the C5. RH then waits 2 s without
+reading before asking for the revision code. The scanner output the C5 sent in
+that time was held by the computer's USB serial driver and reached RH ahead of
+the reply, so RH read scanner data as its revision code. Each retry reopened
+the port, which reset the C5 again. Windows does not reset the C5 when the port
+opens, which is why discovery worked there.
 
-This fixes a reproduced failure mechanism. It does not establish what sent
-unexpected bytes on the reported Raspberry Pi installations.
+From this release:
 
-## Included from 1.2.2-rc.1
+- After a reset the C5 sends nothing on USB until the computer sends something.
+  RH's first byte is its revision request. The C5 dashboard and `mp.py` send a
+  command when they connect, and `mp.py console` shows nothing until a line is
+  typed.
+- Scanner output still waiting to be sent when RH takes the USB port is dropped,
+  so RH's first bytes back are its replies.
+- The bootloader logs only warnings, so at reset only a few ROM lines reach the
+  USB port.
 
+## Included from 1.2.2-rc.3 and 1.2.2-rc.1
+
+- An unfinished or overflowed USB console line no longer blocks RH's revision
+  request.
 - RH retains its USB session while idle, until a console command requests it.
 - Node API 36, frequency verification and disabled seats are supported.
 - Live RSSI and history retain short peaks between RH polls.
@@ -38,26 +51,29 @@ esptool --chip esp32c5 --port <port> --baud 921600 write_flash --flash_mode dio 
 
 Close RH and other serial tools before flashing, then unplug and reconnect the
 C5. Do not use RH's STM32 node updater. A C5 on 1.1.0 or later can also update
-through FPVGate's C5 Receiver Firmware page over UART. An older partition layout
-needs the full USB flash. No recalibration is needed after 1.2.2-rc.1.
+through FPVGate's C5 Receiver Firmware page over UART; that updates the firmware
+but not the bootloader, which only affects USB use with RH, so use the USB flash
+for a C5 used directly with RH on Linux. An older partition layout needs the
+full USB flash. No recalibration is needed after 1.2.2-rc.1.
 
 For direct USB timing, leave the S3 disconnected, add the C5 serial port in RH's
 Advanced Settings and restart RH. See the
-[USB setup guide](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.2-rc.3/docs/USB_ROTORHAZARD.md).
+[USB setup guide](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.2-rc.4/docs/USB_ROTORHAZARD.md).
 
 ## Validation and limitations
 
-- The original parser fails the partial-input regression; the fixed parser passes.
-- Portable suites pass: 60 meter/framing checks, 1201 node/UART checks, 48 host
-  checks, 305 RH protocol checks and nine USB parser scenarios.
-- Five integration tests using stock RH 4.5.0-beta.1's serial client pass.
-- Six Linux PTY tests pass with real pySerial, termios, RH delays and retries:
-  clean discovery, partial input, overflow, tty echo, fragmented replies and
-  repeated discovery without resetting the device process. The original
-  parser fails two discovery attempts and recovers after a newline.
+- Reproduced on a Raspberry Pi 4 (Raspberry Pi OS Bookworm, 64-bit) with stock
+  RotorHazard 4.4.0 and a Waveshare C5-Zero. With 1.2.2-rc.3, discovery failed
+  five times and then found one node with API level 254. With 1.2.2-rc.4, RH
+  found eight seats at API 36 at the first attempt in five of five server
+  starts (two of them with this release image), with no read or write errors.
+- Portable suites pass on Windows and on the Pi: 60 meter/framing checks, 1201
+  node/UART checks, 48 host checks, 305 RH protocol checks and eleven USB parser
+  scenarios. The two new scenarios fail against the 1.2.2-rc.3 parser.
+- Five integration tests using stock RH 4.4.0's serial client pass, and six
+  Linux PTY discovery tests pass on the Pi.
 - Both board targets build and pass the SRAM guard.
 
-The Linux tests simulate device transport and radio; they do not emulate Pi
-hardware, USB enumeration, CDC control lines or the cdc_acm driver. The full RH
-web server is not launched. This candidate has not been flashed and tested on
-the affected user's Pi or validated at a full race event.
+The Seeed XIAO ESP32-C5 image builds and passes the tests but was not run on
+hardware with RH. Discovery and polling were tested; a race with laps through
+RH was not. Not yet validated at a full race event.

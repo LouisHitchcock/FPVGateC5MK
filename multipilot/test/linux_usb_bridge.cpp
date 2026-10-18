@@ -19,6 +19,9 @@ static uint32_t nowMs() {
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 int usb_serial_jtag_driver_install(const usb_serial_jtag_driver_config_t*) { return 0; }
+// Writes go straight to the PTY, so there is no queue to drop.
+int usb_serial_jtag_driver_uninstall() { return 0; }
+bool usb_serial_jtag_is_driver_installed() { return true; }
 int usb_serial_jtag_read_bytes(void* data, size_t size, uint32_t) {
     int n = read(serialFd, data, size);
     return n > 0 ? n : 0;
