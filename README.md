@@ -100,6 +100,13 @@ python -m http.server 8000 --directory multipilot/web
 The same firmware serves the dashboard and all timer connections; there is
 no separate USB-only or UART-only firmware.
 
+Install **C5MK 1.2.3** for the fast USB signal stream. Older firmware can
+connect, but uses the slower USB scan. Choose Multi Pilot for your board in
+the [FPVGate web flasher](https://fpvgate.xyz/c5.html#flasher).
+`scanmode full` restores the original diagnostic scan; `scanmode fast` is
+the new default. See the [release notes](release/RELEASE_NOTES.md) for
+validation and limitations.
+
 ### Browser dashboard and lap timer
 
 | Tool | What it does |

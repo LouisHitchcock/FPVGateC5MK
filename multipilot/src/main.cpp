@@ -51,6 +51,10 @@ struct Settings {
     // FPVGate scan mode (P): samples per dump and the hopNoWait skip mask.
     int nodeScanN = 256;
     int nodeHopSkip = 3;
+    // USB scanner: the node scan's hop and capture (noden, nodeskip), ~1030
+    // readings per pilot per second. Off: the original scan (n, settle, tune),
+    // ~140 per second, for comparisons.
+    bool fastScan = true;
 };
 
 Settings cfg;
@@ -107,6 +111,20 @@ bool visit(int loMhz, int64_t* tMid, mp::MeterResult& r, bool* fellBack, const m
     if (cfg.settleUs > 0) esp_rom_delay_us(cfg.settleUs);
     if (!dump::capture(m.samples(), cfg.mode, tMid, fellBack)) return false;
     m.measure(dump::words(), cfg.gain, r);
+    return true;
+}
+
+// The same visit along the node scan's path: hopNoWait (no settle: the PLL
+// has settled when it returns) and a short capture. The one-pass power()
+// gives the same band power as measure(); measure() also reports DC,
+// clipping and the gain field, so it runs only when `full` is set (every
+// 16th cycle), which keeps the dashboard's warnings without slowing the scan.
+bool visitFast(int loMhz, int64_t* tMid, mp::MeterResult& r, bool* fellBack, bool full) {
+    radio::hopNoWait(loMhz, nullptr, cfg.nodeHopSkip);
+    radio::forceGain(cfg.gain);
+    if (!dump::capture(nodeScanMeter.samples(), cfg.mode, tMid, fellBack)) return false;
+    if (full) nodeScanMeter.measure(dump::words(), cfg.gain, r);
+    else r.db = nodeScanMeter.power((const uint32_t*)dump::words());
     return true;
 }
 
@@ -247,10 +265,10 @@ void printStatus() {
     for (int i = 0; i < cfg.count; ++i) k += snprintf(pl + k, sizeof pl - k, "%s%d", i ? "," : "", cfg.pilots[i]);
     const dump::Stats& s = dump::stats();
     say("pilots %s\ngain %d (max %d)  offset %d MHz  n %d  settle %d us  alpha %.2f\n"
-        "tune %s  dump %s  bw %d  scan %s  rxon %d\n"
+        "scanmode %s  tune %s  dump %s  bw %d  scan %s  rxon %d\n"
         "dumps stock %lu direct %lu timeouts %lu incomplete %lu  drops %lu  cycle %lu us\n%s",
         pl, cfg.gain, radio::gainMax(), cfg.offsetMhz, cfg.n, cfg.settleUs, cfg.alpha,
-        cfg.fullTune ? "full" : "pll", cfg.mode == dump::Mode::Direct ? "direct" : "stock", cfg.bw,
+        cfg.fastScan ? "fast" : "full", cfg.fullTune ? "full" : "pll", cfg.mode == dump::Mode::Direct ? "direct" : "stock", cfg.bw,
         cfg.scanning ? "on" : "off", rxOnUsed, (unsigned long)s.stock, (unsigned long)s.direct,
         (unsigned long)s.timeouts, (unsigned long)s.incomplete, (unsigned long)hostlink::drops(),
         (unsigned long)lastCycleUs, bootReport);
@@ -589,7 +607,7 @@ void handle(char* line) {
     char* arg = strtok(nullptr, "");
     int iv = arg ? atoi(arg) : 0;
     if (!strcmp(cmd, "help")) {
-        say("status | regs | scan on|off | pilots rb|<MHz,...> | gain N | offset MHz | n N | settle us |\n"
+        say("status | regs | scan on|off | scanmode fast|full | pilots rb|<MHz,...> | gain N | offset MHz | n N | settle us |\n"
             "alpha A | tune pll|full | dump direct|stock | bw 0|1 | timer | cmp [count] |\n"
             "noden N | nodeskip 0-3 | hopprof MHz [jump] [skip] | hopspikes MHz [count] [how] | bandshape MHz |\n"
             "capture MHz [n] | sramtest | node [on|off|echo on|off|map lo hi|alpha A|reject ...|cmd ...]\n");
@@ -657,6 +675,10 @@ void handle(char* line) {
         cfg.alpha = a;
         resetFilters();
         say("alpha %.3f\n", a);
+    } else if (!strcmp(cmd, "scanmode") && arg) {
+        cfg.fastScan = strcmp(arg, "full") != 0;
+        resetFilters();
+        say("scanmode %s\n", cfg.fastScan ? "fast" : "full");
     } else if (!strcmp(cmd, "tune") && arg) {
         cfg.fullTune = !strcmp(arg, "full");
         if (!cfg.fullTune) radio::bandSetup(cfg.bw);
@@ -720,7 +742,8 @@ void scanCycle() {
         mp::MeterResult r;
         int64_t tm = 0;
         bool fb = false;
-        bool ok = visit(cfg.pilots[i] - cfg.offsetMhz, &tm, r, &fb, meter);
+        bool ok = cfg.fastScan ? visitFast(cfg.pilots[i] - cfg.offsetMhz, &tm, r, &fb, (seq & 15) == 0)
+                               : visit(cfg.pilots[i] - cfg.offsetMhz, &tm, r, &fb, meter);
         p.tUs = (uint32_t)tm;
         p.mhz = (uint16_t)cfg.pilots[i];
         p.gain = (uint8_t)cfg.gain;
@@ -742,7 +765,9 @@ void scanCycle() {
                         hostlink::drops(), lastCycleUs};
     settingsChanged = false;
     memcpy(buf, &h, sizeof h);
-    hostlink::send(mp::kTypeRssi, buf, (uint16_t)(sizeof h + cfg.count * sizeof(mp::RssiPilot)));
+    // Fast: don't wait for buffer space. A host that falls behind loses
+    // records (counted in `drops`) rather than slowing the scan.
+    hostlink::send(mp::kTypeRssi, buf, (uint16_t)(sizeof h + cfg.count * sizeof(mp::RssiPilot)), cfg.fastScan ? 0 : 2);
 }
 
 void scanTask(void*) {
