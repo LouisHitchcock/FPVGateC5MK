@@ -444,7 +444,14 @@ function crc16x25(b, start, end) {
 }
 
 let rxBuf = new Uint8Array(0);
-const link = { crc: 0, lost: 0, drops: 0, lastSeq: -1 };
+// lost, crc and drops count from the connection (drops: the C5's own counter,
+// which runs from its boot, less its value when counting started).
+const link = { crc: 0, lost: 0, drops: 0, lastSeq: -1, dropsBase: null, dropsRaw: 0, settleUntil: 0 };
+// Just after the port opens, the first bytes can be left over from before:
+// part of a frame, or records from before the C5 was reset by the open (some
+// browsers reset it). Gaps and CRC errors then aren't counted.
+const SETTLE_MS = 750;
+const settling = () => performance.now() < link.settleUntil;
 
 function feed(chunk) {
   health.bytes += chunk.length;
@@ -459,7 +466,7 @@ function feed(chunk) {
     if (len > 4096) { i += 2; continue; }
     if (i + 7 + len > b.length) break;
     const crc = b[i + 5 + len] | (b[i + 6 + len] << 8);
-    if (crc16x25(b, i + 2, i + 5 + len) !== crc) { link.crc++; i += 2; continue; }
+    if (crc16x25(b, i + 2, i + 5 + len) !== crc) { if (!settling()) link.crc++; i += 2; continue; }
     onFrame(String.fromCharCode(b[i + 2]), b.slice(i + 5, i + 5 + len));
     i += 7 + len;
   }
@@ -520,13 +527,21 @@ function ensurePilots(list) {
 
 function onRecord(dv) {
   const seq = dv.getUint16(0, true), count = dv.getUint8(2), hflags = dv.getUint8(3);
-  link.drops = dv.getUint32(4, true);
+  const drops = dv.getUint32(4, true);
   lastCycleUs = dv.getUint32(8, true);
+  // The C5's drop counter only ever rises while it runs: if it fell, the C5
+  // restarted and what came before is stale. Count afresh from here.
+  const restarted = link.dropsBase !== null && drops < link.dropsRaw;
+  if (restarted && !settling()) slog("note", "the C5 restarted; counting from here");
+  if (link.dropsBase === null || restarted || settling()) {
+    link.dropsBase = drops;
+    link.lastSeq = -1;
+  }
+  link.dropsRaw = drops;
+  link.drops = drops - link.dropsBase;
   if (link.lastSeq >= 0) {
     const run = ((seq - link.lastSeq) & 0xFFFF) - 1;
-    // A huge jump is the sequence starting again (the C5 restarted), not a loss.
-    if (run > 32768) slog("note", `record sequence restarted at ${seq} (the C5 restarted?)`);
-    else if (run > 0) { link.lost += run; health.maxRun = Math.max(health.maxRun, run); }
+    if (run > 0) { link.lost += run; health.maxRun = Math.max(health.maxRun, run); }
   }
   link.lastSeq = seq;
   health.rec++;
@@ -1215,8 +1230,10 @@ async function openPort(p, quiet) {
   port = p;
   connecting = false;
   writer = port.writable.getWriter();
-  Object.assign(link, { crc: 0, lost: 0, drops: 0, lastSeq: -1 });
-  Object.assign(health, { lost0: 0, drops0: null, crc0: 0 });
+  Object.assign(link, { crc: 0, lost: 0, drops: 0, lastSeq: -1, dropsBase: null, dropsRaw: 0,
+                        settleUntil: performance.now() + SETTLE_MS });
+  rxBuf = new Uint8Array(0);
+  Object.assign(health, { lost0: 0, drops0: 0, crc0: 0 });
   const info = p.getInfo();
   slog("conn", `connected (USB ${(info.usbVendorId || 0).toString(16)}:${(info.usbProductId || 0).toString(16)}${quiet ? ", automatic" : ""})`);
   notice("");
