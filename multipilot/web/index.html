@@ -165,7 +165,7 @@
   <div class="spacer"></div>
   <label class="switch" title="Scanner settings, console and raw captures"><input type="checkbox" id="advToggle">Advanced</label>
   <a class="btn-link" href="timer/" title="A simple lap timer for 1-4 pilots, for phones and laptops">Lap timer</a>
-  <button id="btnVtx" title="Which channel a quad's VTX is on, and its power against a 25 mW reference">VTX check</button>
+  <button id="btnVtx" title="Jump to the VTX check: which channel a quad is on, and its power">VTX check</button>
   <a class="btn-link" href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash firmware</a>
   <button id="btnConnect" class="primary">Connect</button>
   <button id="btnDisconnect" hidden>Disconnect</button>
@@ -228,11 +228,10 @@
       </div>
     </section>
 
-    <section class="panel" id="vtxSection" hidden>
+    <section class="panel" id="vtxSection">
       <div class="ph">
         <h2>VTX check</h2><span class="sub" id="vtxSub">which channel a quad is on, and its power</span>
-        <div class="tools"><a class="btn-link" href="vtx/" title="The same check on its own page, for phones">Open on its own</a>
-          <button id="btnVtxClose">Close</button></div>
+        <div class="tools"><a class="btn-link" href="vtx/" title="The same check on its own page, for phones">Open on its own</a></div>
       </div>
       <div id="vtxMount"></div>
     </section>
@@ -605,17 +604,11 @@ vtxLink.endCheck = () => {
     send("pilots " + vtxRestore.join(","));
   } else vtxRestore = null;
 };
-let vtxMounted = false;
-async function openVtx() {
-  if (!port) { notice("Connect the receiver first, then open the VTX check.", "err"); return; }
-  showLive();
-  $("vtxSection").hidden = false;
-  $("vtxSection").scrollIntoView({ behavior: "smooth", block: "start" });
-  if (vtxMounted) return;
+// Always on the dashboard, loaded with the page.
+async function mountVtx() {
   try {
     const m = await import("./vtxpanel.js");
     m.mountVtxCheck($("vtxMount"), vtxLink);
-    vtxMounted = true;
   } catch (e) {
     $("vtxMount").innerHTML = `<p class="dim">The VTX check couldn't load (${e.message}). Browsers don't load it from a file on
       disk: use <a href="https://c5mk.fpvgate.xyz/">c5mk.fpvgate.xyz</a>, or serve this folder (for example
@@ -1478,8 +1471,11 @@ $("btnConnect").onclick = connect;
 $("btnConnect2").onclick = connect;
 $("btnDisconnect").onclick = () => { userDisconnected = true; disconnect(false); };
 $("btnLog").onclick = downloadLog;
-$("btnVtx").onclick = openVtx;
-$("btnVtxClose").onclick = () => { $("vtxSection").hidden = true; };
+$("btnVtx").onclick = () => {
+  if (!port) { notice("Connect the receiver first: the VTX check is on the dashboard once it's connected.", "err"); return; }
+  $("vtxSection").scrollIntoView({ behavior: "smooth", block: "start" });
+};
+mountVtx();
 $("btnScan").onclick = () => send(scanning ? "scan off" : "scan on");
 $("btnPause").onclick = () => {
   if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
