@@ -1,9 +1,15 @@
 # Browser screenshots
 
-These are screenshots of the actual browser UI. Receiver readings and passes
-are simulated deterministically; the images do not demonstrate RF performance
-or physical USB compatibility.
+These are screenshots of the actual browser UI. `dashboard-live.png` is the
+receiver screenshot supplied by Louis on 19 October 2026, showing firmware
+`1.2.3-dev+xiaoc5`. It is the main dashboard image in the repository README.
+Keep this supplied capture unchanged; the capture script does not replace it.
 
+All other images use simulated receiver readings and passes; those images
+do not demonstrate RF performance or physical USB compatibility.
+
+- `dashboard-live.png`: supplied receiver capture, eight channels, active R2
+  signal, peak hold, one waterfall and advanced tools open.
 - `connect.png`: dashboard connection and setup information.
 - `dashboard.png`: desktop dashboard, eight channels and one large waterfall.
 - `dashboard-mobile.png`: the same dashboard at a 390 px phone viewport.

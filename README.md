@@ -137,10 +137,14 @@ starts the lap clock; subsequent passes record laps.
 
 #### Screenshots
 
-These screenshots show the current interface with **simulated RSSI data**;
-they are not RF measurements.
+Dashboard screenshot supplied by Louis, showing eight pilot channels, live
+signal levels, peak hold and the single large waterfall. The receiver shown
+is running `1.2.3-dev+xiaoc5`.
 
-![Desktop dashboard with eight pilot signals, peak hold and a single large waterfall](docs/screenshots/dashboard.png)
+![C5MK dashboard connected to a receiver, with eight pilot channels, an active R2 signal, peak hold and one large waterfall](docs/screenshots/dashboard-live.png)
+
+The examples below use **simulated RSSI data and passes** to demonstrate the
+interface; they are not RF measurements.
 
 Phone views: live dashboard, lap setup with the RSSI graph closed, and the
 expanded graph with touch handles and editable entry/exit values.
