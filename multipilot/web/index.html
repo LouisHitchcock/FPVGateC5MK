@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <!-- FPVGate C5MK live dashboard. Published at https://c5mk.fpvgate.xyz from
      this file (.github/workflows/dashboard.yml); it also works opened straight
-     from disk. Needs a browser with Web Serial (Chrome, Edge, Opera or a recent
-     Firefox on a desktop) and HTTPS. Everything runs in the
+     from disk. Uses Web Serial on desktop or WebUSB on Android over HTTPS.
+     Everything runs in the
      page: no server, nothing sent anywhere. Frame format: multipilot/src/frame.h;
      console commands: `help` on the C5. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111317">
 <title>C5MK Live | FPVGate</title>
 <meta name="description" content="Live dashboard for the FPVGate C5MK multi-pilot 5.8 GHz receiver: connect over USB and watch every pilot's signal in your browser.">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/fpvgate-logo.png" type="image/png">
 <style>
   :root {
     --bg: #111317; --panel: #191c21; --panel2: #1f232a; --line: #2a2f37; --line2: #353b45;
@@ -22,15 +23,15 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
   a { color: var(--accent); }
-  button, select, input { font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line2);
-    border-radius: 6px; padding: 4px 10px; }
+  button, select, input { font: inherit; font-size: 16px; color: var(--text); background: var(--panel2); border: 1px solid var(--line2);
+    border-radius: 10px; padding: 8px 12px; min-height: 44px; max-width: 100%; }
   button { cursor: pointer; }
   button:hover:not(:disabled) { border-color: #4a5260; background: #262b33; }
   button:disabled, input:disabled, select:disabled { opacity: .45; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
   button.primary:hover:not(:disabled) { background: #4b95ec; }
   button.on { background: var(--accent-dim); border-color: var(--accent); }
-  .btn-link { display: inline-block; text-decoration: none; color: var(--text); border: 1px solid var(--line2); border-radius: 6px; padding: 4px 10px; font-size: 13px; }
+  .btn-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; text-decoration: none; color: var(--text); border: 1px solid var(--line2); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
   .btn-link:hover { border-color: #4a5260; background: #262b33; }
   input[type=number] { width: 72px; }
 
@@ -52,8 +53,8 @@
   .switch input:checked { background: var(--accent); }
   .switch input:checked::after { left: 16px; background: #fff; }
 
-  main { max-width: 1500px; margin: 0 auto; padding: 16px 18px 28px; display: grid; gap: 14px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  main { max-width: 1320px; margin: 0 auto; padding: 20px 24px 32px; display: grid; gap: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; min-width: 0; }
   .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .ph h2 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
   .ph .sub { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
@@ -77,11 +78,21 @@
   .intro .side ul { margin: 0 0 16px; padding-left: 18px; }
   .intro .side li { margin-bottom: 5px; }
   .big-connect { font-size: 15px; padding: 9px 22px; }
+  .intro .compat { margin: 12px 0 0; color: var(--soft); font-size: 13px; line-height: 1.6; }
+  .intro .compat small { display: block; color: var(--muted); font-size: inherit; }
+  .intro .feature-list { list-style: none; padding: 0; display: grid; gap: 14px; }
+  .intro .feature-list li { margin: 0; }
+  .intro .feature-list b { display: block; color: var(--text); margin-bottom: 3px; }
+  .intro .help { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .intro .help summary { cursor: pointer; min-height: 44px; padding: 10px 0; color: var(--soft); }
+  .intro .help ul { margin: 4px 0 14px; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .intro .help li { margin: 8px 0; }
+  .intro .privacy { color: var(--muted); margin: 18px 0 0; font-size: 13px; }
   @media (max-width: 900px) { .intro { grid-template-columns: 1fr; } .intro .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 18px; } }
 
   /* Channel cards */
   /* auto-fit: eight cards share one row on a wide screen instead of leaving an empty slot */
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px; }
   .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px 8px; min-width: 0; }
   .card.hidden { opacity: .4; }
   .card .top { display: flex; align-items: center; gap: 7px; }
@@ -108,7 +119,7 @@
 
   .chartwrap { position: relative; }
   canvas { width: 100%; display: block; }
-  #chart { height: 340px; } #wf { height: 260px; } #spec { height: 260px; }
+  #chart { height: 300px; } #wf { height: 340px; } #spec { height: 260px; }
   .tip { position: absolute; pointer-events: none; background: #0c0e11; border: 1px solid var(--line2); border-radius: 6px; padding: 5px 8px;
     display: none; white-space: nowrap; font-size: 12px; z-index: 2; }
   .tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
@@ -153,50 +164,132 @@
   .ed-foot .count { color: var(--muted); font-size: 13px; margin-right: auto; }
   footer { max-width: 1500px; margin: 0 auto; padding: 0 18px 26px; color: var(--muted); font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
   footer a { color: var(--soft); }
+  /* Primary navigation and signal views stay compact; tools expand on demand. */
+  .app-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .app-nav .current { border-color: var(--accent); background: var(--accent-dim); }
+  .app-nav .switch { margin-left: auto; min-height: 44px; }
+  .switch input { min-height: 0; }
+  .header-actions { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
+  main, #live, .intro > *, .ph > *, .tools, .row, .row label { min-width: 0; }
+  #live { display: flex; flex-direction: column; gap: 20px; }
+  #channelsSection { order: 0; } #spectrumSection { order: 1; } #historySection { order: 2; } #vtxSection { order: 3; }
+  #receiverTools { order: 4; } #captureSection { order: 5; }
+  body:not(.advanced) .card dl, body:not(.advanced) .health, body:not(.advanced) #btnLog { display: none; }
+  .card .flags { min-height: 0; }
+  .card .top input { min-height: 24px; width: 24px; height: 24px; }
+  .card-toggle { display: flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; margin: -8px -8px -8px auto; cursor: pointer; }
+  .card-toggle input { margin: 0; }
+  .panel > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 650; list-style: none; }
+  .panel > summary::after { content: "+"; margin-left: auto; font-size: 22px; color: var(--muted); }
+  .panel[open] > summary::after { content: "−"; }
+  .panel > summary::-webkit-details-marker { display: none; }
+  .panel > summary .sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .panel[open] > summary { margin-bottom: 16px; }
+  .waterfall-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--line); margin: 16px 0 10px; padding-top: 14px; }
+  .waterfall-heading h3 { margin: 0; font-size: 14px; }
+  .waterfall-heading label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .tool-link { margin-bottom: 12px; }
+  .row input:not([type=number]) { min-width: 0; }
+  #inPilots { width: min(100%, 320px); }
+  .chartwrap { min-width: 0; touch-action: pan-y; }
+  .tip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .panel, details { scroll-margin-top: 110px; }
+  :focus-visible { outline: 2px solid #7db6f2; outline-offset: 3px; }
+  .ed-mobile { display: none; }
+  @media (max-width: 640px) {
+    header.top { gap: 8px; padding: max(10px, env(safe-area-inset-top)) 12px 10px; }
+    .brand .sub { display: none; }
+    header .conn { order: 3; width: 100%; flex-wrap: wrap; font-size: 12px; }
+    main { padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); gap: 12px; }
+    .app-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 6px; }
+    .app-nav > .switch { margin-left: 0; min-width: 44px; justify-content: center; }
+    .advanced-label { display: none; }
+    .app-nav .btn-link, .app-nav button { font-size: 14px; padding: 8px; }
+    #live { gap: 12px; }
+    .panel { padding: 14px; border-radius: 14px; }
+    #spectrumSection { order: 0; } #channelsSection { order: 1; }
+    .ph { align-items: flex-start; gap: 8px; }
+    .ph .tools { margin-left: 0; width: 100%; gap: 8px; }
+    .ph .sub { text-transform: none; letter-spacing: 0; }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .card { padding: 10px; } .card .val { font-size: 23px; }
+    body:not(.advanced) .card .spark { display: none; }
+    #chart { height: 240px; } #wf { height: 280px; }
+    .intro { padding: 20px; gap: 20px; } .intro h1 { font-size: 25px; }
+    .intro .side { padding-top: 16px; }
+    .panel > summary .sub { display: none; }
+    .row label { flex-wrap: wrap; max-width: 100%; }
+    .row > input { width: 100%; }
+    #log { font-size: 11px; overflow-wrap: anywhere; }
+    #irTable { overflow-x: auto; }
+    .ed-foot > button { flex: 1; }
+    dialog { max-height: 90dvh; overflow-y: auto; padding: 16px; }
+    #edSvg { display: none; }
+    .ed-mobile { display: grid; gap: 12px; margin: 12px 0; }
+    .ed-mobile > label { display: grid; gap: 6px; color: var(--soft); }
+    .ed-channels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ed-channels button { min-height: 52px; text-align: left; }
+    .ed-foot { background: var(--panel); position: sticky; bottom: -16px; padding: 10px 0 16px; }
+    footer { padding: 0 12px 24px; gap: 12px; }
+  }
 </style>
+<link rel="stylesheet" href="brand.css">
 </head>
 <body>
 <header class="top">
   <a class="brand" href="https://fpvgate.xyz/c5.html" title="FPVGate C5 radio">
-    <svg class="logo" width="54" height="22" viewBox="0 0 585 240" fill="none" aria-hidden="true"><path d="M 34 137 H 94 C 123 137 128 96 157 96 C 194 96 196 204 231 204 C 264 204 284 34 317 34 C 351 34 357 183 384 183 C 409 183 413 115 439 115 C 457 115 467 137 489 137 H 551" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <b>C5MK</b><span class="sub">Live dashboard</span>
+    <img class="brand-logo" src="assets/fpvgate-logo.png" alt="FPVGate" width="28" height="28">
+    <b>FPVGate <span class="product">C5MK</span></b><span class="sub">Live dashboard</span>
   </a>
   <div class="conn"><span class="dot" id="dot"></span><span id="connText">Not connected</span><span class="tag" id="modeTag"></span><span class="tag" id="radioTag"></span></div>
-  <div class="spacer"></div>
-  <label class="switch" title="Scanner settings, console and raw captures"><input type="checkbox" id="advToggle">Advanced</label>
-  <a class="btn-link" href="timer/" title="A simple lap timer for 1-4 pilots, for phones and laptops">Lap timer</a>
-  <button id="btnVtx" title="Jump to the VTX check: which channel a quad is on, and its power">VTX check</button>
-  <a class="btn-link" href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash firmware</a>
-  <button id="btnConnect" class="primary">Connect</button>
-  <button id="btnDisconnect" hidden>Disconnect</button>
+  <div class="header-actions"><button id="btnConnect" class="primary">Connect</button>
+  <button id="btnDisconnect" hidden>Disconnect</button></div>
 </header>
 
 <main>
+  <nav class="app-nav" aria-label="Receiver tools">
+    <a class="btn-link current" href="./" aria-current="page">Signals</a>
+    <a class="btn-link" href="timer/">Lap timer</a>
+    <button id="btnVtx">VTX check</button>
+    <label class="switch" title="Scanner settings, console and raw captures"><input type="checkbox" id="advToggle" aria-label="Advanced tools"><span class="advanced-label">Advanced tools</span></label>
+  </nav>
   <div class="notice" id="notice"></div>
 
   <section class="panel intro" id="intro">
     <div>
-      <h1>See every pilot's signal, live</h1>
-      <p class="lead">This page talks to an FPVGate C5MK receiver over USB and shows what it hears on up to eight
-        5.8&nbsp;GHz channels, about a thousand times a second each. Use it to check a new receiver, find clear
-        channels, set RotorHazard thresholds or watch a pass go through the gate.</p>
+      <h1>Connect your receiver</h1>
+      <p class="lead">Turn your phone or computer into a live view of your FPV signals. Plug in an FPVGate C5MK
+        receiver to watch up to eight pilot channels, check a video transmitter, or time your laps.</p>
       <ol class="steps">
-        <li><span class="n">1</span><div><b>Flash C5MK onto your ESP32-C5</b><span>Use the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a> (Waveshare C5-Zero, XIAO ESP32-C5 and others). Fit a 5.8&nbsp;GHz antenna.</span></div></li>
-        <li><span class="n">2</span><div><b>Plug the C5 into this computer</b><span>Use its USB-C port and a data cable. Close RotorHazard, serial monitors and other tabs using the port first: only one program can have it at a time.</span></div></li>
-        <li><span class="n">3</span><div><b>Press Connect and pick the C5</b><span>It shows as a USB JTAG/serial device. The browser remembers it, so next time the page reconnects on its own.</span></div></li>
+        <li><span class="n">1</span><div><b>Have your C5 ready</b><span>Use an ESP32-C5 running <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5MK firmware</a>, with a 5.8&nbsp;GHz antenna fitted.</span></div></li>
+        <li><span class="n">2</span><div><b>Plug it in with a USB data cable</b><span>Connect directly to your phone or computer. Close RotorHazard, serial monitors and other tabs using the receiver.</span></div></li>
+        <li><span class="n">3</span><div><b>Connect and choose your channels</b><span>Select the C5 in the browser's device picker. Once connected, use Edit channels to match your pilots' video frequencies.</span></div></li>
       </ol>
       <button class="primary big-connect" id="btnConnect2">Connect receiver</button>
+      <p class="compat">Use Chrome on Android, or Chrome / Edge on a computer.
+        <small>iPhone and iPad browsers cannot connect to this receiver over USB. On Android, allow the browser's USB access prompt.</small></p>
       <div class="notice err" id="noSerial" hidden></div>
+      <details class="help">
+        <summary>Receiver not appearing?</summary>
+        <ul>
+          <li>Try another USB cable: some cables only provide power. Your phone must support USB devices.</li>
+          <li>Check that the C5 is powered and running C5MK firmware. It may appear as a USB JTAG/serial device in the picker.</li>
+          <li>Only one app or tab can use the receiver at a time. Disconnect it from other apps, then try again.</li>
+          <li>Open this site's HTTPS address and allow USB access when asked. Previously allowed receivers can reconnect automatically.</li>
+        </ul>
+      </details>
+      <p class="privacy">No account needed. Readings stay in your browser; nothing is uploaded.</p>
     </div>
     <div class="side">
-      <h3>Good to know</h3>
-      <ul>
-        <li>Nothing leaves your computer: the page runs entirely in the browser.</li>
-        <li>Connecting takes the receiver back from RotorHazard if RH was using it. Restart RH when you're done here.</li>
-        <li>The receiver doesn't transmit, so it's safe to use beside a race.</li>
-        <li>Readings are in dB relative to the C5's own noise; what matters is how far a pilot rises above the floor.</li>
+      <h3>What you can do</h3>
+      <ul class="feature-list">
+        <li><b>Watch your pilots live</b>The spectrum shows the signal on your selected channels. The large waterfall shows how those signals change over time, with the newest readings at the top.</li>
+        <li><b>Find and check a VTX</b>Open VTX check to find a video transmitter's channel, check its frequency and compare its power against a saved reference.</li>
+        <li><b>Time your laps</b>Open <a href="timer/">Lap timer</a> for practice or a race. Its live RSSI graphs help you tune detection: type entry / exit values or drag their handles.</li>
+        <li><b>Look across the band</b>Optional spectrum sweeps scan the supported 5180–5917&nbsp;MHz range. Pilot history pauses during a sweep and resumes on your original channels when you stop.</li>
       </ul>
-      <h3>More</h3>
+      <p class="compat">Signal levels are in receiver dB. Use changes and peaks to compare signals; these are not calibrated transmitter power readings.</p>
+      <h3 style="margin-top:20px">Guides &amp; firmware</h3>
       <ul>
         <li><a href="https://fpvgate.xyz/c5.html" target="_blank" rel="noopener">C5 radio guide and wiring</a></li>
         <li><a href="https://github.com/LouisHitchcock/FPVGateC5MK/blob/main/docs/USB_ROTORHAZARD.md" target="_blank" rel="noopener">Using C5MK with RotorHazard</a></li>
@@ -205,8 +298,8 @@
     </div>
   </section>
 
-  <div id="live" hidden style="display:grid;gap:14px">
-    <section class="panel">
+  <div id="live" hidden>
+    <section class="panel" id="channelsSection">
       <div class="ph">
         <h2>Channels</h2><span class="sub" id="chanSub"></span>
         <div class="tools">
@@ -228,36 +321,37 @@
       </div>
     </section>
 
-    <section class="panel" id="vtxSection">
-      <div class="ph">
-        <h2>VTX check</h2><span class="sub" id="vtxSub">which channel a quad is on, and its power</span>
-        <div class="tools"><a class="btn-link" href="vtx/" title="The same check on its own page, for phones">Open on its own</a></div>
-      </div>
+    <details class="panel" id="vtxSection">
+      <summary>VTX check<span class="sub" id="vtxSub">channel, frequency and power</span></summary>
+      <a class="btn-link tool-link" href="vtx/">Open VTX check on its own</a>
       <div id="vtxMount"></div>
-    </section>
+    </details>
 
-    <section class="panel">
+    <details class="panel" id="historySection">
+      <summary>RSSI history<span class="sub">Compare pilot signals over time</span></summary>
       <div class="ph">
-        <h2>RSSI history</h2>
         <div class="tools">
           <label>Show <select id="selSeries"><option value="filt">Smoothed</option><option value="raw">Raw</option><option value="both">Both</option></select></label>
-          <label>Window <select id="selWindow"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
           <label>Scale <select id="selY"><option value="fixed">Fixed</option><option value="auto">Auto</option></select></label>
-          <button id="btnPause">Pause</button>
           <button id="btnFloor" title="Store the current levels as each channel's floor; the cards then show the rise above it">Set floor</button>
           <button id="btnRec" title="Record every reading to a CSV file">Record CSV</button>
           <span id="recInfo" class="dim"></span>
         </div>
       </div>
       <div class="chartwrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
-    </section>
+    </details>
 
-    <section class="panel">
-      <div class="ph"><h2>Waterfall</h2><span class="sub">highest reading per slice · newest at top</span></div>
+    <section class="panel" id="spectrumSection">
+      <div class="ph"><h2>Live signals</h2><span class="sub">Your pilot channels, in real time</span></div>
+      <div id="spectrumMount"><p class="dim">Loading spectrum controls…</p></div>
+      <div class="waterfall-heading"><h3>Waterfall</h3>
+        <label>History <select id="selWindow"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
+        <button id="btnPause">Pause</button></div>
       <div class="chartwrap"><canvas id="wf"></canvas><div class="tip" id="wfTip"></div></div>
+      <p class="dim" id="waterfallHelp">Newest at top · tap a channel to inspect its signal.</p>
     </section>
 
-    <div class="grid2 adv">
+    <div class="grid2 adv" id="receiverTools">
       <section class="panel">
         <div class="ph"><h2>Scanner</h2><span class="sub">applies until the C5 restarts</span></div>
         <div class="row">
@@ -291,7 +385,7 @@
       </section>
     </div>
 
-    <section class="panel adv">
+    <section class="panel adv" id="captureSection">
       <div class="ph"><h2>Raw capture</h2><span class="sub">x = RF offset from the LO, inversion corrected</span>
         <div class="tools">
           <label>LO MHz <input type="number" id="inLo" value="5870" min="5100" max="5950" class="needs"></label>
@@ -311,6 +405,7 @@
   <span>FPVGate C5MK live dashboard · runs in your browser, nothing is uploaded</span>
   <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
   <a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">Source</a>
+  <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash firmware</a>
 </footer>
 
 <dialog id="editor">
@@ -322,6 +417,10 @@
     <button data-preset="5658,5732,5843,5917">4 pilots (R1 R3 R6 R8)</button>
   </div>
   <svg id="edSvg"></svg>
+  <div class="ed-mobile">
+    <label>Band <select id="edBand"><option value="R">Raceband</option><option value="F">Fatshark</option><option value="A">Boscam A</option><option value="B">Boscam B</option><option value="E">Boscam E</option><option value="L">Lowband</option></select></label>
+    <div class="ed-channels" id="edChannels"></div>
+  </div>
   <div class="ed-foot">
     <span class="count" id="edCount"></span>
     <label class="dim" style="font-size:12px">Add MHz <input type="number" id="edCustom" min="5180" max="5917" style="width:80px"></label>
@@ -388,19 +487,12 @@ function summaryTrim(s, tCut) {
   const n = lowerBound(s.t, tCut);
   if (n) for (const k of ["t", "fFirst", "fLast", "fMin", "fMax", "rMin", "rMax"]) s[k].splice(0, n);
 }
-const ESPRESSIF_USB = [{ usbVendorId: 0x303A, usbProductId: 0x1001 }];
 const $ = id => document.getElementById(id);
 
 // Web Serial only exists on secure pages. The hosted copy forces HTTPS, but an
 // http:// link or bookmark can still land here first.
 if (location.protocol === "http:" && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   location.replace("https://" + location.host + location.pathname + location.search + location.hash);
-}
-
-// Why there's no navigator.serial, in words.
-function serialProblem() {
-  if (!window.isSecureContext) return "USB serial only works on secure pages. Open https://c5mk.fpvgate.xyz (with https), or this file straight from disk.";
-  return "This browser doesn't support Web Serial. Use a current Chrome, Edge, Opera or Firefox on a desktop or laptop.";
 }
 
 function channelName(mhz) {
@@ -590,11 +682,18 @@ const vtxLink = new EventTarget();
 Object.defineProperty(vtxLink, "connected", { get: () => !!port });
 vtxLink.send = line => send(line);
 vtxLink.setChannels = list => send("pilots " + list.join(","));
-let vtxActive = false, vtxRestore = null, vtxRestoreUntil = 0;
+let vtxActive = false, spectrumActive = false, vtxRestore = null, vtxRestoreUntil = 0;
+function setRetuningControls(busy) {
+  document.querySelectorAll(".needs").forEach(el => { el.disabled = busy || !port; });
+  $("vtxMount").inert = spectrumActive;
+}
 vtxLink.beginCheck = () => {
+  if (vtxActive || spectrumActive) return false;
   vtxActive = true;
   vtxRestore = pilots.map(p => p.mhz);
   $("vtxSub").textContent = "checking: the charts pause until it's done";
+  setRetuningControls(true);
+  return true;
 };
 vtxLink.endCheck = () => {
   vtxActive = false;
@@ -603,7 +702,40 @@ vtxLink.endCheck = () => {
     vtxRestoreUntil = performance.now() + 2000;
     send("pilots " + vtxRestore.join(","));
   } else vtxRestore = null;
+  setRetuningControls(false);
 };
+const spectrumLink = new EventTarget();
+let spectrumView = null;
+Object.defineProperty(spectrumLink, "connected", { get: () => !!port });
+spectrumLink.setChannels = list => send("pilots " + list.join(","));
+spectrumLink.beginCheck = () => {
+  if (!port || vtxActive || spectrumActive || mode === "node" || !scanning || !pilots.length) return false;
+  spectrumActive = true;
+  vtxRestore = pilots.map(p => p.mhz);
+  setRetuningControls(true);
+  return true;
+};
+spectrumLink.endCheck = async () => {
+  try {
+    if (port && vtxRestore?.length) {
+      vtxRestoreUntil = performance.now() + 2000;
+      await send("pilots " + vtxRestore.join(","));
+    } else vtxRestore = null;
+  } finally {
+    spectrumActive = false;
+    setRetuningControls(false);
+  }
+};
+async function mountFullSpectrum() {
+  try {
+    const { mountSpectrum } = await import("./spectrum.js");
+    spectrumView = mountSpectrum($("spectrumMount"), spectrumLink, {
+      waterfall: $("wf"), waterfallNote: $("waterfallHelp"), historyControl: $("selWindow"), pauseControl: $("btnPause"),
+    });
+  } catch (e) {
+    $("spectrumMount").textContent = `Spectrum couldn't load: ${e.message}. Serve this folder over HTTP or HTTPS.`;
+  }
+}
 // Always on the dashboard, loaded with the page.
 async function mountVtx() {
   try {
@@ -643,10 +775,17 @@ function onRecord(dv) {
                 mhz: dv.getUint16(o + 8, true), gain: dv.getUint8(o + 10), clips: dv.getUint8(o + 11),
                 flags: dv.getUint8(o + 12) });
   }
-  if (vtxActive) {
+  if (vtxActive || spectrumActive) {
     const entries = recs.map(r => ({ t: chipSeconds(r.t), raw: r.flags & FLAG.FAIL ? NaN : r.raw / 100, filt: r.filt / 100,
                                      mhz: r.mhz, gain: r.gain, clips: r.clips, flags: r.flags }));
-    vtxLink.dispatchEvent(new CustomEvent("record", { detail: { seq, cycleUs: lastCycleUs, entries } }));
+    if (spectrumActive && (hflags & 2)) {
+      vtxRestore = null;
+      setMode("node");
+      setScanning(false);
+      spectrumLink.dispatchEvent(new Event("unavailable"));
+      return;
+    }
+    (spectrumActive ? spectrumLink : vtxLink).dispatchEvent(new CustomEvent("record", { detail: { seq, cycleUs: lastCycleUs, entries } }));
     return;
   }
   let resumed = false;
@@ -683,6 +822,7 @@ function onRecord(dv) {
       summaryTrim(p.s, tCut);
     }
   });
+  spectrumView?.updateLive(recs.map(r => ({ mhz: r.mhz, filt: r.flags & FLAG.FAIL ? NaN : r.filt / 100 })));
   if (recording) {
     recRows.push([seq, ...recs.flatMap(r => [r.t, r.raw / 100, r.filt / 100, r.flags])].join(","));
     if (recRows.length % 125 === 0) $("recInfo").textContent = `${recRows.length} cycles`;
@@ -713,7 +853,7 @@ function buildCards() {
     d.className = "card" + (p.hidden ? " hidden" : "");
     const col = COLORS[k % COLORS.length];
     d.innerHTML = `<div class="top"><span class="sw" style="background:${col}"></span><span class="name">${p.name}</span>
-        <input type="checkbox" title="Show on the charts" ${p.hidden ? "" : "checked"}></div>
+        <label class="card-toggle"><input type="checkbox" aria-label="Show ${p.name} on the charts" ${p.hidden ? "" : "checked"}></label></div>
       <div class="mhz">${p.mhz} MHz</div>
       <div class="val" id="cVal${k}">–<small>dB</small></div>
       <div class="bar"><i id="cBar${k}" style="background:${col}"></i></div>
@@ -754,7 +894,7 @@ function windowStats(p, secs) {
 
 function drawSpark(p, k) {
   const cv = $(`cSpark${k}`);
-  if (!cv) return;
+  if (!cv || !cv.offsetParent) return;
   const { ctx, W, H } = fitCanvas(cv);
   ctx.clearRect(0, 0, W, H);
   // From the 5 ms summary: the last 10 s, one point per pixel column (the
@@ -848,7 +988,7 @@ function niceStep(range, target) {
   return p * (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10);
 }
 
-const AXIS_FONT = "11px system-ui, sans-serif";
+const AXIS_FONT = '11px "IBM Plex Sans", sans-serif';
 function drawAxes(ctx, box, x0, x1, y0, y1, xFmt) {
   ctx.font = AXIS_FONT;
   ctx.strokeStyle = "#252a32";
@@ -860,7 +1000,7 @@ function drawAxes(ctx, box, x0, x1, y0, y1, xFmt) {
     ctx.beginPath(); ctx.moveTo(box.l, y); ctx.lineTo(box.r, y); ctx.stroke();
     ctx.fillText(v.toFixed(ys < 1 ? 1 : 0), 4, y + 4);
   }
-  const xs = niceStep(x1 - x0, 8);
+  const xs = niceStep(x1 - x0, Math.max(2, Math.floor((box.r - box.l) / 70)));
   for (let v = Math.ceil(x0 / xs) * xs; v <= x1; v += xs) {
     const x = Math.round(box.X(v)) + 0.5;
     ctx.beginPath(); ctx.moveTo(x, box.t); ctx.lineTo(x, box.b); ctx.stroke();
@@ -882,7 +1022,7 @@ function chartView() {
 }
 
 function emptyMessage(ctx, W, H, text) {
-  ctx.fillStyle = "#8a919c"; ctx.font = "13px system-ui, sans-serif";
+  ctx.fillStyle = "#8a919c"; ctx.font = '13px "IBM Plex Sans", sans-serif';
   ctx.fillText(text, 40, H / 2);
 }
 
@@ -1010,7 +1150,7 @@ function drawLiveLabels(ctx, box, v) {
   const over = labels.length ? labels[labels.length - 1].y - (box.b - 6) : 0;
   if (over > 0) labels.forEach(l => { l.y -= over; });
   for (let i = labels.length - 2; i >= 0; i--) labels[i].y = Math.min(labels[i].y, labels[i + 1].y - gap);
-  ctx.font = "600 12px system-ui, sans-serif";
+  ctx.font = '500 12px "IBM Plex Sans", sans-serif';
   ctx.textBaseline = "middle";
   labels.forEach(l => {
     const col = COLORS[l.k % COLORS.length];
@@ -1053,11 +1193,12 @@ function drawHover(box, v) {
   tip.innerHTML = html;
   tip.style.display = "block";
   const left = hoverX + 14 + tip.offsetWidth > box.r ? hoverX - 14 - tip.offsetWidth : hoverX + 14;
-  tip.style.left = left + "px";
+  tip.style.left = Math.max(0, Math.min(left, cv.clientWidth - tip.offsetWidth)) + "px";
   tip.style.top = "10px";
 }
 
-$("chart").addEventListener("mousemove", e => { hoverX = e.offsetX; });
+$("chart").addEventListener("pointermove", e => { if (e.pointerType !== "touch") hoverX = e.offsetX; });
+$("chart").addEventListener("pointerdown", e => { hoverX = e.offsetX; });
 $("chart").addEventListener("mouseleave", () => { hoverX = null; });
 
 // ---- waterfall -----------------------------------------------------------------
@@ -1082,7 +1223,8 @@ function renderWaterfall() {
   const v = chartView(), n = pilots.length;
   wf = null;
   if (!isFinite(v.tEnd) || !n) { emptyMessage(ctx, W, H, "Waiting for readings…"); return; }
-  const box = { l: 44, r: W - 58, t: 4, b: H - 18 };
+  const compact = W < 500;
+  const box = { l: compact ? 34 : 44, r: W - (compact ? 42 : 58), t: 4, b: H - (compact && n > 4 ? 36 : 20) };
   const rows = Math.max(1, Math.round(box.b - box.t)), slice = v.span / rows;
   const db = new Float32Array(rows * n).fill(NaN);
   pilots.forEach((p, k) => {
@@ -1114,9 +1256,14 @@ function renderWaterfall() {
   pilots.forEach((p, k) => {
     ctx.fillStyle = "#c3c8d0";
     const label = p.name, w = ctx.measureText(label).width, cx = box.l + colW * (k + 0.5);
-    ctx.fillText(label, cx - w / 2 + 6, box.b + 13);
-    ctx.fillStyle = COLORS[k % COLORS.length];
-    ctx.fillRect(cx - w / 2 - 4, box.b + 6, 7, 7);
+    if (compact) {
+      ctx.fillStyle = COLORS[k % COLORS.length];
+      ctx.fillText(label, cx - w / 2, box.b + 13 + (n > 4 ? (k % 2) * 14 : 0));
+    } else {
+      ctx.fillText(label, cx - w / 2 + 6, box.b + 13);
+      ctx.fillStyle = COLORS[k % COLORS.length];
+      ctx.fillRect(cx - w / 2 - 4, box.b + 6, 7, 7);
+    }
     if (k) { ctx.fillStyle = "#191c21"; ctx.fillRect(box.l + colW * k - 1, box.t, 2, box.b - box.t); }
   });
   // Seconds ago, down the left.
@@ -1138,8 +1285,9 @@ function renderWaterfall() {
   wf = { box, rows, n, slice, db, colW };
 }
 
-$("wf").addEventListener("mousemove", e => {
+function inspectWaterfall(e) {
   const tip = $("wfTip");
+  if (spectrumView?.ownsWaterfall()) { tip.style.display = "none"; return; }
   if (!wf) { tip.style.display = "none"; return; }
   const r = $("wf").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   const k = Math.floor((x - wf.box.l) / wf.colW), row = Math.floor(y - wf.box.t);
@@ -1148,9 +1296,11 @@ $("wf").addEventListener("mousemove", e => {
   tip.innerHTML = `<span class="sw" style="background:${COLORS[k % COLORS.length]}"></span>${p.name} · ${p.mhz} MHz<br>` +
     `${(row * wf.slice).toFixed(1)} s ago · ${isNaN(d) ? "no reading" : d.toFixed(1) + " dB"}`;
   tip.style.display = "block";
-  tip.style.left = Math.min(x + 14, r.width - 170) + "px";
-  tip.style.top = (y + 10) + "px";
-});
+  tip.style.left = Math.max(0, Math.min(x + 14, r.width - tip.offsetWidth)) + "px";
+  tip.style.top = Math.max(0, Math.min(y + 10, r.height - tip.offsetHeight)) + "px";
+}
+$("wf").addEventListener("pointermove", e => { if (e.pointerType !== "touch") inspectWaterfall(e); });
+$("wf").addEventListener("pointerdown", inspectWaterfall);
 $("wf").addEventListener("mouseleave", () => { $("wfTip").style.display = "none"; });
 
 // ---- capture spectrum ----------------------------------------------------------
@@ -1284,6 +1434,18 @@ function toggleCh(mhz) {
 }
 
 function drawEditor() {
+  const band = $("edBand").value;
+  $("edChannels").replaceChildren();
+  BANDS[band].forEach((mhz, i) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `${band}${i + 1} · ${mhz} MHz`;
+    button.classList.toggle("on", edSel.includes(mhz));
+    button.setAttribute("aria-pressed", String(edSel.includes(mhz)));
+    button.disabled = mhz < MIN_MHZ || mhz > MAX_MHZ;
+    button.onclick = () => toggleCh(mhz);
+    $("edChannels").appendChild(button);
+  });
   const svg = $("edSvg"), NS = "http://www.w3.org/2000/svg";
   const W = 940, labelW = 96, rowH = 46, axisH = 22, gapH = 24;
   const sections = [ED_MAIN, ED_LOW];
@@ -1347,6 +1509,7 @@ function drawEditor() {
 
 // ---- serial --------------------------------------------------------------------
 let port = null, reader = null, writer = null, scanning = true, connecting = false;
+let receiverTransport = null;
 // Set by the Disconnect button: the page then leaves the board alone (no
 // reconnecting when it's replugged or reset, e.g. while it's being flashed)
 // until Connect is pressed or the page is reloaded.
@@ -1392,11 +1555,11 @@ async function openPort(p, quiet) {
 }
 
 async function connect() {
-  if (!("serial" in navigator)) { notice(serialProblem(), "err"); return; }
+  if (!receiverTransport) { notice("USB controls are still loading. Please try again.", "err"); return; }
   userDisconnected = false;
   let p;
   try {
-    p = await navigator.serial.requestPort({ filters: ESPRESSIF_USB });
+    p = await receiverTransport.requestReceiver();
   } catch (e) {
     return;   // picker closed
   }
@@ -1424,6 +1587,7 @@ async function readLoop() {
 async function disconnect(lost) {
   const p = port;
   port = null;
+  spectrumLink.dispatchEvent(new Event("unavailable"));
   try { if (reader) await reader.cancel(); } catch (e) {}
   try { if (writer) { writer.releaseLock(); writer = null; } } catch (e) {}
   try { if (p) await p.close(); } catch (e) {}
@@ -1448,7 +1612,7 @@ function setConnected(on) {
   $("btnConnect").hidden = on;
   $("btnDisconnect").hidden = !on;
   $("btnConnect2").disabled = on;
-  document.querySelectorAll(".needs").forEach(el => { el.disabled = !on; });
+  setRetuningControls(vtxActive || spectrumActive);
   setConnState(on ? "ok" : "", on ? "Connected" : "Not connected");
   if (!on) { $("modeTag").textContent = ""; mode = null; }
   if (on) showLive();
@@ -1473,9 +1637,11 @@ $("btnDisconnect").onclick = () => { userDisconnected = true; disconnect(false);
 $("btnLog").onclick = downloadLog;
 $("btnVtx").onclick = () => {
   if (!port) { notice("Connect the receiver first: the VTX check is on the dashboard once it's connected.", "err"); return; }
+  $("vtxSection").open = true;
   $("vtxSection").scrollIntoView({ behavior: "smooth", block: "start" });
 };
 mountVtx();
+mountFullSpectrum();
 $("btnScan").onclick = () => send(scanning ? "scan off" : "scan on");
 $("btnPause").onclick = () => {
   if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
@@ -1528,6 +1694,7 @@ document.querySelectorAll("[data-preset]").forEach(b => {
   b.onclick = () => { edSel = b.dataset.preset.split(",").map(Number); drawEditor(); };
 });
 $("edClear").onclick = () => { edSel = []; drawEditor(); };
+$("edBand").onchange = drawEditor;
 $("edCancel").onclick = () => $("editor").close();
 $("edAdd").onclick = () => {
   const f = Math.round(+$("edCustom").value);
@@ -1553,28 +1720,33 @@ try { setAdvanced(localStorage.getItem(ADV_KEY) === "1"); } catch (e) { setAdvan
 
 setConnected(false);
 $("intro").hidden = false;
-if (!("serial" in navigator)) {
-  $("noSerial").textContent = serialProblem();
-  $("noSerial").hidden = false;
+async function setupReceiverTransport() {
   $("btnConnect").disabled = $("btnConnect2").disabled = true;
-} else {
-  // A receiver this browser has been allowed to use before: connect on load,
-  // and whenever one is plugged back in.
-  navigator.serial.getPorts().then(ports => {
-    const p = ports.find(q => { const i = q.getInfo(); return i.usbVendorId === 0x303A; });
-    if (p) openPort(p, true);
-  });
-  navigator.serial.addEventListener("connect", e => { if (!port && !userDisconnected) openPort(e.target, true); });
-  navigator.serial.addEventListener("disconnect", e => { if (port && e.target === port) disconnect(true); });
+  try {
+    receiverTransport = await import("./dashboard-transport.js");
+    const problem = receiverTransport.receiverProblem();
+    if (problem) { $("noSerial").textContent = problem; $("noSerial").hidden = false; return; }
+    $("btnConnect").disabled = $("btnConnect2").disabled = false;
+    receiverTransport.watchReceivers(
+      p => { if (!port && !userDisconnected) openPort(p, true); },
+      p => { if (port && (p === port || (p.device && p.device === port.device))) disconnect(true); },
+    );
+    const ports = await receiverTransport.knownReceivers();
+    if (ports[0] && !userDisconnected) await openPort(ports[0], true);
+  } catch (error) {
+    $("noSerial").textContent = `Couldn't load USB connection support: ${error.message}. Open the hosted site or serve this folder over HTTP or HTTPS.`;
+    $("noSerial").hidden = false;
+  }
 }
+setupReceiverTransport();
 
 let lastCards = 0, lastWaterfall = 0;
 function frame(ts) {
   const t0 = performance.now();
   if (!$("live").hidden) {
-    renderChart();
+    if ($("historySection").open) renderChart();
     // Never both in one frame: each costs ~15-40 ms at 1000 readings/s.
-    if (ts - lastWaterfall > 100) { renderWaterfall(); lastWaterfall = ts; }
+    if (ts - lastWaterfall > 100 && !spectrumView?.ownsWaterfall()) { renderWaterfall(); lastWaterfall = ts; }
     else if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
   }
   health.renderMax = Math.max(health.renderMax, performance.now() - t0);

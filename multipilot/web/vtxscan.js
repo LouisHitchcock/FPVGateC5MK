@@ -34,6 +34,7 @@ export async function sweep(link, freqs, { settleMs = 120, dwellMs = 250, onProg
   const levels = new Map();
   for (let g = 0; g < freqs.length; g += 8) {
     if (signal?.aborted) break;
+    if (!link.connected) throw new Error("Receiver disconnected");
     const group = freqs.slice(g, g + 8);
     const got = new Map(group.map(f => [f, []]));
     let t0 = Infinity;
@@ -45,12 +46,17 @@ export async function sweep(link, freqs, { settleMs = 120, dwellMs = 250, onProg
       }
     };
     link.addEventListener("record", onRecord);
-    await link.setChannels(fill8(group));
-    t0 = performance.now() + settleMs;
-    await sleep(settleMs + dwellMs);
-    link.removeEventListener("record", onRecord);
+    try {
+      await link.setChannels(fill8(group));
+      t0 = performance.now() + settleMs;
+      await sleep(settleMs + dwellMs);
+      if (!link.connected) throw new Error("Receiver disconnected");
+    } finally {
+      link.removeEventListener("record", onRecord);
+    }
+    if (signal?.aborted) break;
     for (const [f, a] of got) levels.set(f, median(a));
-    onProgress?.(Math.min(g + 8, freqs.length), freqs.length);
+    onProgress?.(Math.min(g + 8, freqs.length), freqs.length, levels);
   }
   return levels;
 }

@@ -45,7 +45,12 @@ const CSS = `
 .vx-grid .vx-cell.win { border-color: #fff; }
 .vx-grid .vx-cell.off { background: #1a1d22; color: #4e555f; }
 .vx-legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted, #8a919c); }
-.vx-legend i { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1b2230, #185cab, #39a0e5, #b0d6fa); }
+.vx-legend i { flex: 1; display: flex; gap: 2px; height: 8px; }
+.vx-legend i span { flex: 1; }
+.vx-legend i span:nth-child(1) { background: #1b2230; }
+.vx-legend i span:nth-child(2) { background: #185cab; }
+.vx-legend i span:nth-child(3) { background: #39a0e5; }
+.vx-legend i span:nth-child(4) { background: #b0d6fa; }
 .vx-power { display: grid; gap: 10px; }
 .vx-power .vx-big { font: 800 32px/1.1 var(--mono, ui-monospace, monospace); }
 .vx-row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -71,7 +76,7 @@ const HTML = `
 <div class="vx-card" data-k="gridbox" hidden>
   <h3>Every channel</h3>
   <div class="vx-grid" data-k="grid"></div>
-  <div class="vx-legend"><span>quiet</span><i></i><span>strong</span></div>
+  <div class="vx-legend"><span>quiet</span><i aria-hidden="true"><span></span><span></span><span></span><span></span></i><span>strong</span></div>
   <p class="vx-muted" style="margin-top:10px">Numbers are dB above the quietest channels. Strong neighbours of the winner are
     normal: a video signal is about 18 MHz wide.</p>
 </div>
@@ -114,7 +119,7 @@ export function mountVtxCheck(container, link) {
   let busy = false, found = null, lastLevel = null, gain = null;
 
   const notice = text => { el("notice").textContent = text || ""; };
-  const begin = () => link.beginCheck?.();
+  const begin = () => link.beginCheck?.() !== false;
   const end = () => link.endCheck?.();
 
   function renderGrid(levels, winner) {
@@ -140,12 +145,12 @@ export function mountVtxCheck(container, link) {
   async function check() {
     if (busy) return;
     if (!link.connected) { notice("Connect the receiver first."); return; }
+    if (!begin()) { notice("Stop the spectrum sweep before checking a VTX."); return; }
     busy = true;
     el("check").disabled = true;
     el("prog").hidden = false;
     notice("");
     const bar = el("prog").firstElementChild;
-    begin();
     try {
       const freqs = bandChannels(BAND_ORDER);
       const levels = await sweep(link, freqs, { onProgress: (d, n) => { bar.style.width = `${70 * d / n}%`; } });
@@ -221,8 +226,8 @@ export function mountVtxCheck(container, link) {
   async function measureAgain() {
     if (busy || !found) return;
     if (!link.connected) { notice("Connect the receiver first."); return; }
+    if (!begin()) { notice("Stop the spectrum sweep before measuring a VTX."); return; }
     busy = true;
-    begin();
     try { await measureLevel(); } finally { end(); busy = false; }
   }
 

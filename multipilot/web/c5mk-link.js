@@ -59,7 +59,7 @@ export function whyNoTransport() {
 // ---- WebUSB CDC-ACM ----------------------------------------------------------
 // The C5's USB Serial/JTAG port is a standard CDC-ACM serial port. On Android
 // nothing claims it, so WebUSB can drive it directly.
-class UsbCdc {
+export class UsbCdc {
   constructor(device) { this.device = device; }
 
   static async request() {

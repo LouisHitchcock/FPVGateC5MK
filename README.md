@@ -6,13 +6,16 @@ C5MK turns a single ESP32-C5 module into an RF front end that measures up to
 eight FPV video transmitters about 1000 times a second each. It uses the C5's
 own 5 GHz Wi-Fi radio as a receiver: no RX5808 modules, no SPI mods.
 
-The same firmware works with three kinds of lap timer:
+The same firmware works with these lap timers:
 
 - **[RotorHazard](https://github.com/RotorHazard/RotorHazard)**, over USB. The
   C5 plugs straight into the computer running RH and appears as eight native
   RH nodes: no S3, network connection or plugin.
 - **[FPVGate](https://github.com/LouisHitchcock/FPVGate)**, over UART, as the
   receiver node of its multi-pilot mode.
+- **[Browser lap timer](https://c5mk.fpvgate.xyz/timer/)**, over USB to an
+  Android phone or computer. Practice and race modes for 1–4 pilots, with
+  voice announcements, signal graphs and lap CSV export.
 - **Your own timer**, over the same UART link. The protocol is simple and
   `host/` has a ready-made library.
 
@@ -78,15 +81,91 @@ python tools/mp.py --port <port> cmd "status"
 ```
 
 The status shows `wifi=1`, a `gainmax` (89 on chip v1.0) and the boot checks,
-the last of which should end in `-> live`. For a live view of every channel,
-open **[c5mk.fpvgate.xyz](https://c5mk.fpvgate.xyz)** in a browser with Web
-Serial (Chrome, Edge, Opera or a recent Firefox) and
-press Connect: it runs in the browser over Web Serial, nothing is uploaded.
-The same page is `multipilot/web/index.html`, which also works opened from
-disk.
+the last of which should end in `-> live`. For a live view of your channels,
+open **[c5mk.fpvgate.xyz](https://c5mk.fpvgate.xyz)** and press Connect.
+Use Chrome or Edge on a computer (Web Serial), or Chrome on Android
+(WebUSB), with a USB data cable. iPhone and iPad browsers cannot connect to
+the receiver over USB. Android USB support is implemented; testing with a
+physical phone and receiver is still pending.
 
-Every image supports all three connections below; there's no separate
-USB-only or UART-only firmware.
+The pages run locally in your browser: no account or upload is needed.
+Close RotorHazard, serial monitors and other tabs using the receiver first.
+To serve your own copy, run this from the repository root and open
+`http://localhost:8000`:
+
+```text
+python -m http.server 8000 --directory multipilot/web
+```
+
+The same firmware serves the dashboard and all timer connections; there is
+no separate USB-only or UART-only firmware.
+
+### Browser dashboard and lap timer
+
+| Tool | What it does |
+|---|---|
+| [Live signals](https://c5mk.fpvgate.xyz/) | Up to eight pilot channels, a live spectrum trace with peak hold, one large waterfall, and expandable RSSI history. The default view uses the readings already arriving from the C5; it does not retune the receiver. |
+| [Lap timer](https://c5mk.fpvgate.xyz/timer/) | Practice or race with 1–4 pilots, automatic noise-floor tracking, sensitivity presets, spoken lap times and CSV results. |
+| [VTX check](https://c5mk.fpvgate.xyz/vtx/) | Find a transmitter's channel, check its centre frequency and compare power against a saved reference. This is a relative comparison, not a calibrated power meter. |
+| Advanced tools | Receiver settings, console commands, CSV signal recording and raw I/Q captures. Optional full-band spectrum sweeps cover 5180–5917 MHz; pilot history pauses during a sweep and the original channels return when it stops. |
+
+The dashboard adapts to phone screens, with touch-sized controls, a mobile
+channel picker, and expandable tools to keep the main view focused on signals.
+The lap timer also adapts automatically: phones keep a single-column layout,
+while desktop screens get pilots and session settings side by side, wider
+RSSI graphs, two-column race lanes with larger clocks, and results with
+restart/export controls alongside them.
+
+In the lap timer, **RSSI graph is closed by default**. Tap **Show** to open it,
+or tap **?** for an explanation of the trace, pass detection and tuning.
+Detection keeps running while the graph is closed. During setup, expand
+**Advanced: adjust entry / exit**, enable custom values, then type numbers
+or drag the Entry and Exit handles. Values are dB above each pilot's tracked
+noise floor, with Exit at least 0.5 dB below Entry. Settings are remembered on
+your device; they configure the browser timer, not RotorHazard's thresholds.
+
+Start with Medium sensitivity and test a fly-by before racing. Try High if
+passes are missed, or Low if it triggers too easily. The first accepted pass
+starts the lap clock; subsequent passes record laps.
+
+#### Screenshots
+
+These screenshots show the current interface with **simulated RSSI data**;
+they are not RF measurements.
+
+![Desktop dashboard with eight pilot signals, peak hold and a single large waterfall](docs/screenshots/dashboard.png)
+
+Phone views: live dashboard, lap setup with the RSSI graph closed, and the
+expanded graph with touch handles and editable entry/exit values.
+
+<p>
+  <img src="docs/screenshots/dashboard-mobile.png" alt="Mobile dashboard with live spectrum and one waterfall, simulated signals" width="260">
+  <img src="docs/screenshots/timer-mobile.png" alt="Mobile lap timer with RSSI graph closed and question-mark help button" width="260">
+  <img src="docs/screenshots/timer-rssi-mobile.png" alt="Mobile RSSI tuning with draggable entry and exit handles and number fields, simulated signals" width="260">
+</p>
+
+<details>
+<summary>Desktop lap timer</summary>
+
+![Desktop lap timer setup with four pilots beside session settings](docs/screenshots/timer-desktop.png)
+
+![Desktop timing view with four pilots in two columns and large clocks, simulated passes](docs/screenshots/timer-race-desktop.png)
+
+The [expanded desktop RSSI graphs](docs/screenshots/timer-rssi-desktop.png)
+and [desktop results](docs/screenshots/timer-results-desktop.png) are also
+captured with simulated readings.
+
+</details>
+
+<details>
+<summary>Connection screen</summary>
+
+![Connection screen with setup instructions, browser compatibility and troubleshooting](docs/screenshots/connect.png)
+
+</details>
+
+Screenshot regeneration instructions are in
+[docs/screenshots/README.md](docs/screenshots/README.md).
 
 ### With RotorHazard (USB)
 
@@ -176,11 +255,14 @@ multipilot/                 the C5 firmware
   src/                      firmware source (ESP-IDF, C++), including the RotorHazard node endpoint (rh_usb.*)
   test/                     PC tests: meter, framing, link protocol, RH node protocol, host library (no hardware)
   tools/mp.py               USB console, recorder and raw-capture analysis
-  web/index.html            live dashboard over Web Serial
+  web/index.html            responsive live dashboard (desktop Web Serial / Android WebUSB)
+  web/timer/                browser lap timer with optional RSSI graph and touch threshold tuning
+  web/vtx/                  standalone VTX channel, frequency and relative power check
+  tools/capture_web.mjs      reproducible documentation screenshots with simulated receiver data
 host/                       the receiving side, for your own timer
   c5host/                   portable C++ library for the UART link and gate passes
   examples/esp32s3/         minimal ESP32-S3 host (PlatformIO, Arduino)
-docs/                       documentation
+docs/                       documentation and browser screenshots
 release/<board>/            ready-built firmware for the current release
 ```
 

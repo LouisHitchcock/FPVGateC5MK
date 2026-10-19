@@ -32,6 +32,12 @@ summary is in [`LICENSE`](../LICENSE).
 
 ## Commercial licensing
 
+The browser tools bundle IBM Plex Sans and IBM Plex Mono under the SIL Open
+Font License 1.1. The fonts retain that licence; their copyright notice and
+full terms are in [multipilot/web/assets/OFL.txt](../multipilot/web/assets/OFL.txt).
+Brand asset provenance is documented in
+[multipilot/web/assets/README.md](../multipilot/web/assets/README.md).
+
 Commercial use needs a separate licence from the copyright holder, Louis
 Hitchcock. For example:
 

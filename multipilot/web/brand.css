@@ -1,0 +1,85 @@
+/* FPVGate website design foundation, aligned with fpvgate.xyz/styles.css.
+   Fonts are bundled locally so the receiver tools also work offline. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("assets/ibm-plex-sans-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/ibm-plex-mono-regular-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/ibm-plex-mono-medium-latin.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: dark;
+  --surface: #14161a; --surface-1: #1b1e23; --surface-2: #22262c; --surface-inset: #101216;
+  --ink: #e9eaec; --ink-2: #a0a4ab; --ink-3: #71767e;
+  --rule: #2b2f36; --rule-strong: #3d434c;
+  --accent: #6fb2f2; --accent-fill: #1f6fcc; --accent-fill-hover: #2a80e0; --accent-ink: #fff;
+  --ok: #55a06e; --warn: #c48a2c; --bad: #d2543f;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-sm: 3px; --r: 5px; --r-lg: 8px;
+  --bg: var(--surface); --panel: var(--surface-1); --panel2: var(--surface-2);
+  --line: var(--rule); --line2: var(--rule-strong);
+  --text: var(--ink); --soft: var(--ink-2); --muted: var(--ink-2);
+  --mono: var(--font-mono); --accent-dim: #192d43;
+}
+html { -webkit-text-size-adjust: 100%; }
+body { font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+a { color: var(--ink); text-decoration-color: var(--rule-strong); text-underline-offset: .2em; }
+a:hover { color: var(--accent); text-decoration-color: currentColor; }
+b, strong { font-weight: 600; }
+h1, h2, h3, .intro h1 { font-family: var(--font-body); font-weight: 600; letter-spacing: -.02em; }
+.ph h2, h2, .intro .side h3 { text-transform: none; letter-spacing: -.01em; }
+header, header.top { background: var(--surface); backdrop-filter: none; }
+header .title, .brand b { font-weight: 600; letter-spacing: -.02em; }
+.brand-logo { width: 28px; height: 28px; object-fit: contain; filter: invert(1); flex: none; }
+.brand .product { font-weight: 400; color: var(--soft); }
+.panel, .card, .lane, .notice, .signal-help, dialog { border-radius: var(--r-lg); box-shadow: none; }
+button, button.big, select, input[type=text], input[type=number], .btn-link,
+.seg, .seg button, .stepper button, .chip, .tag, .signal-handle, #btnSignalHelp,
+.tip, #log, .ed-channels button { border-radius: var(--r); box-shadow: none; }
+button, .btn-link, .seg button.on, button.primary, .stepper output { font-weight: 500; }
+button:active:not(:disabled) { transform: none; }
+button.primary, .seg button.on { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-ink); }
+button.primary:hover:not(:disabled), .seg button.on:hover:not(:disabled) { background: var(--accent-fill-hover); border-color: var(--accent-fill-hover); }
+button:hover:not(:disabled), .btn-link:hover { background: var(--surface-2); border-color: var(--rule-strong); }
+button.on, .app-nav .current { background: var(--surface-2); border-color: var(--rule-strong); color: var(--ink); }
+.dot.ok { box-shadow: none; }
+.switch input { border-radius: var(--r-sm); }
+.switch input::after { border-radius: 1px; }
+.card .val, .lane .stats b, .chip { font-weight: 500; }
+.card .val small { font-family: var(--font-body); }
+.steps .n { background: transparent; border-radius: 0; color: var(--accent); font-family: var(--font-mono); font-weight: 500; }
+.lane .name, .lane .lapno { font-weight: 600; }
+.lane .clock { font-weight: 500; }
+.promo { background: var(--surface-1); border-color: var(--rule); }
+.promo h2 { color: var(--ink); }
+.lane.flash { animation: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The shared VTX module inserts its CSS dynamically: keep these selectors
+   specific enough to apply the same brand after the panel is mounted. */
+.vx .vx-card { border-radius: var(--r-lg); }
+.vx button, .vx .vx-primary, .vx .vx-verdict, .vx .vx-notice, .vx .vx-cell { border-radius: var(--r); }
+body .vx button.vx-primary { background: var(--accent-fill); border-color: var(--accent-fill); font-weight: 500; }
+body .vx button.vx-primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
+body .vx h3 { text-transform: none; letter-spacing: -.01em; font-weight: 600; }
+body .vx .vx-ch, body .vx .vx-big { font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
