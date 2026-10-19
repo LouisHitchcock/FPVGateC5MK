@@ -79,7 +79,8 @@ python tools/mp.py --port <port> cmd "status"
 
 The status shows `wifi=1`, a `gainmax` (89 on chip v1.0) and the boot checks,
 the last of which should end in `-> live`. For a live view of every channel,
-open **[c5mk.fpvgate.xyz](https://c5mk.fpvgate.xyz)** in Chrome or Edge and
+open **[c5mk.fpvgate.xyz](https://c5mk.fpvgate.xyz)** in a browser with Web
+Serial (Chrome, Edge, Opera or a recent Firefox) and
 press Connect: it runs in the browser over Web Serial, nothing is uploaded.
 The same page is `multipilot/web/index.html`, which also works opened from
 disk.

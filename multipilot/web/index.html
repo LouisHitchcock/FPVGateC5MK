@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!-- FPVGate C5MK live dashboard. Published at https://c5mk.fpvgate.xyz from
      this file (.github/workflows/dashboard.yml); it also works opened straight
-     from disk. Chrome or Edge on a desktop (Web Serial). Everything runs in the
+     from disk. Needs a browser with Web Serial (Chrome, Edge, Opera or a recent
+     Firefox on a desktop) and HTTPS. Everything runs in the
      page: no server, nothing sent anywhere. Frame format: multipilot/src/frame.h;
      console commands: `help` on the C5. -->
 <html lang="en">
@@ -172,7 +173,7 @@
         <li><span class="n">3</span><div><b>Press Connect and pick the C5</b><span>It shows as a USB JTAG/serial device. The browser remembers it, so next time the page reconnects on its own.</span></div></li>
       </ol>
       <button class="primary big-connect" id="btnConnect2">Connect receiver</button>
-      <div class="notice err" id="noSerial" hidden>This browser can't use USB serial devices. Open this page in <b>Chrome</b> or <b>Edge</b> on a desktop or laptop.</div>
+      <div class="notice err" id="noSerial" hidden></div>
     </div>
     <div class="side">
       <h3>Good to know</h3>
@@ -333,6 +334,18 @@ const FLAG = { FAIL: 1, GAIN: 2, CLIP: 4, FALLBACK: 8 };
 const HISTORY_S = 65;
 const ESPRESSIF_USB = [{ usbVendorId: 0x303A, usbProductId: 0x1001 }];
 const $ = id => document.getElementById(id);
+
+// Web Serial only exists on secure pages. The hosted copy forces HTTPS, but an
+// http:// link or bookmark can still land here first.
+if (location.protocol === "http:" && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  location.replace("https://" + location.host + location.pathname + location.search + location.hash);
+}
+
+// Why there's no navigator.serial, in words.
+function serialProblem() {
+  if (!window.isSecureContext) return "USB serial only works on secure pages. Open https://c5mk.fpvgate.xyz (with https), or this file straight from disk.";
+  return "This browser doesn't support Web Serial. Use a current Chrome, Edge, Opera or Firefox on a desktop or laptop.";
+}
 
 function channelName(mhz) {
   for (const b of ["R", "F", "E", "A", "B", "L"]) {   // Raceband first for shared frequencies
@@ -1123,7 +1136,7 @@ async function openPort(p, quiet) {
 }
 
 async function connect() {
-  if (!("serial" in navigator)) { notice("This browser can't use USB serial devices. Use Chrome or Edge on a desktop.", "err"); return; }
+  if (!("serial" in navigator)) { notice(serialProblem(), "err"); return; }
   let p;
   try {
     p = await navigator.serial.requestPort({ filters: ESPRESSIF_USB });
@@ -1275,6 +1288,7 @@ try { setAdvanced(localStorage.getItem(ADV_KEY) === "1"); } catch (e) { setAdvan
 setConnected(false);
 $("intro").hidden = false;
 if (!("serial" in navigator)) {
+  $("noSerial").textContent = serialProblem();
   $("noSerial").hidden = false;
   $("btnConnect").disabled = $("btnConnect2").disabled = true;
 } else {
