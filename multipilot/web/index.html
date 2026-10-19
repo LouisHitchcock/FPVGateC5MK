@@ -1,151 +1,313 @@
 <!DOCTYPE html>
-<!-- FPVGate C5MK dashboard. Open this file in Chrome or Edge (Web
-     Serial), press Connect and pick the C5's port. Runs locally: no server,
-     no network. Frame format: multipilot/src/frame.h. -->
+<!-- FPVGate C5MK live dashboard. Published at https://c5mk.fpvgate.xyz from
+     this file (.github/workflows/dashboard.yml); it also works opened straight
+     from disk. Chrome or Edge on a desktop (Web Serial). Everything runs in the
+     page: no server, nothing sent anywhere. Frame format: multipilot/src/frame.h;
+     console commands: `help` on the C5. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FPVGate C5MK</title>
+<title>C5MK Live | FPVGate</title>
+<meta name="description" content="Live dashboard for the FPVGate C5MK multi-pilot 5.8 GHz receiver: connect over USB and watch every pilot's signal in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23161a20'/%3E%3Cpath d='M6 22c4 0 4-12 8-12s4 12 8 12 3-6 4-6' fill='none' stroke='%233987e5' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
+  :root {
+    --bg: #111317; --panel: #191c21; --panel2: #1f232a; --line: #2a2f37; --line2: #353b45;
+    --text: #e8eaee; --soft: #b9bfc9; --muted: #8a919c; --accent: #3987e5; --accent-dim: #1d3a5c;
+    --ok: #3dbb7c; --warn: #d9a33a; --bad: #e05d5d;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #1e1e1e; color: #cccccc; font: 12px Consolas, ui-monospace, monospace; }
-  header { padding: 3px 6px; background: #2d2d2d; border-bottom: 1px solid #444; position: sticky; top: 0; z-index: 5; }
-  header > * { vertical-align: middle; margin-right: 4px; }
-  header h1 { display: inline; font-size: 12px; margin-right: 10px; }
-  main { padding: 0 6px 6px; }
-  section { border-bottom: 1px solid #3a3a3a; padding: 4px 0 6px; }
-  section h2 { margin: 0 0 3px; font-size: 12px; font-weight: normal; color: #9cdcfe; }
-  button, select, input { font: inherit; color: #ddd; background: #3a3a3a; border: 1px solid #555; border-radius: 0; padding: 0 5px; height: 20px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  button, select, input { font: inherit; font-size: 13px; color: var(--text); background: var(--panel2); border: 1px solid var(--line2);
+    border-radius: 6px; padding: 4px 10px; }
   button { cursor: pointer; }
-  button:hover:not(:disabled) { background: #464646; }
-  button.on { background: #555; }
-  button:disabled, input:disabled, select:disabled { opacity: .4; cursor: default; }
-  input[type=number] { width: 64px; }
-  .row { margin-bottom: 4px; }
-  .row > * { margin-right: 4px; }
-  .lbl { color: #999; }
-  .pill { color: #999; } .pill.ok { color: #6a9955; } .pill.bad { color: #f44747; }
-  .stat { display: inline-flex; flex-direction: row-reverse; gap: 5px; margin-right: 18px; }
-  .stat .k { color: #888; } .stat .k::after { content: ":"; }
-  .stat.warn .v { color: #d7ba7d; } .stat.bad .v { color: #f44747; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 3px; }
-  .card { border: 1px solid #444; border-left: 3px solid; padding: 2px 5px; cursor: pointer; user-select: none; }
-  .card.hidden { opacity: .35; }
-  .card .name { display: flex; justify-content: space-between; }
-  .card .name span, .card .meta { color: #888; }
-  .card .db { font-size: 16px; }
-  .card .flags { color: #f44747; min-height: 14px; }
+  button:hover:not(:disabled) { border-color: #4a5260; background: #262b33; }
+  button:disabled, input:disabled, select:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #4b95ec; }
+  button.on { background: var(--accent-dim); border-color: var(--accent); }
+  .btn-link { display: inline-block; text-decoration: none; color: var(--text); border: 1px solid var(--line2); border-radius: 6px; padding: 4px 10px; font-size: 13px; }
+  .btn-link:hover { border-color: #4a5260; background: #262b33; }
+  input[type=number] { width: 72px; }
+
+  header.top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 18px; background: rgba(17,19,23,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .brand b { font-size: 17px; letter-spacing: .02em; }
+  .brand .sub { color: var(--muted); font-size: 13px; }
+  .conn { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #555c66; flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(61,187,124,.18); }
+  .dot.busy { background: var(--warn); }
+  .tag { font-size: 12px; color: var(--soft); border: 1px solid var(--line2); border-radius: 999px; padding: 1px 8px; }
+  .tag:empty { display: none; }
+  .spacer { flex: 1; }
+  .switch { display: inline-flex; align-items: center; gap: 7px; color: var(--soft); font-size: 13px; cursor: pointer; user-select: none; }
+  .switch input { appearance: none; width: 32px; height: 18px; border-radius: 9px; background: #3a414c; position: relative; padding: 0; border: 0; cursor: pointer; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #c9ced6; transition: left .12s; }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::after { left: 16px; background: #fff; }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 16px 18px 28px; display: grid; gap: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .ph h2 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
+  .ph .sub { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+  .ph .tools { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .ph label { color: var(--muted); font-size: 12px; display: inline-flex; gap: 5px; align-items: center; }
+  .notice { border-radius: 8px; padding: 9px 12px; font-size: 13px; background: #2a2316; border: 1px solid #5a4823; color: #f1d9a3; }
+  .notice.err { background: #2c1717; border-color: #6a2a2a; color: #f4b9b9; }
+  .notice:empty { display: none; }
+
+  /* Getting started */
+  .intro { display: grid; grid-template-columns: 1.1fr .9fr; gap: 26px; padding: 26px 28px; }
+  .intro h1 { margin: 0 0 6px; font-size: 26px; }
+  .intro p.lead { margin: 0 0 18px; color: var(--soft); max-width: 60ch; }
+  .steps { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 12px; }
+  .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+  .steps .n { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-dim); color: #cfe3fb; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .steps b { display: block; }
+  .steps span { color: var(--muted); font-size: 13px; }
+  .intro .side { border-left: 1px solid var(--line); padding-left: 24px; color: var(--soft); font-size: 13px; }
+  .intro .side h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .intro .side ul { margin: 0 0 16px; padding-left: 18px; }
+  .intro .side li { margin-bottom: 5px; }
+  .big-connect { font-size: 15px; padding: 9px 22px; }
+  @media (max-width: 900px) { .intro { grid-template-columns: 1fr; } .intro .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 18px; } }
+
+  /* Channel cards */
+  /* auto-fit: eight cards share one row on a wide screen instead of leaving an empty slot */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px 8px; min-width: 0; }
+  .card.hidden { opacity: .4; }
+  .card .top { display: flex; align-items: center; gap: 7px; }
+  .card .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .card .name { font-weight: 700; }
+  .card .top input { margin-left: auto; accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+  .card .mhz { color: var(--muted); font-size: 12px; }
+  .card .val { font: 700 25px/1.15 var(--mono); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .val small { font: 400 12px system-ui, sans-serif; color: var(--muted); margin-left: 3px; }
+  .card .bar { height: 5px; border-radius: 3px; background: #2b3039; margin: 6px 0 8px; overflow: hidden; }
+  .card .bar i { display: block; height: 100%; width: 0; border-radius: 3px; }
+  .card dl { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; margin: 0; font-size: 12px; }
+  .card dt { color: var(--muted); }
+  .card dd { margin: 0; text-align: right; font-family: var(--mono); color: var(--soft); white-space: nowrap; }
+  .card dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .flags { min-height: 20px; margin-top: 5px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .chip { font-size: 11px; border-radius: 999px; padding: 0 7px; border: 1px solid; }
+  .chip.bad { color: #f4b9b9; border-color: #6a2a2a; background: #2c1717; }
+  .chip.warn { color: #f1d9a3; border-color: #5a4823; background: #2a2316; }
+  .card canvas.spark { width: 100%; height: 34px; display: block; margin-top: 4px; background: transparent; }
+  .health { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .health .stat b { font-family: var(--mono); font-weight: 600; color: var(--soft); margin-left: 5px; }
+  .health .stat.warn b { color: var(--warn); } .health .stat.bad b { color: var(--bad); }
+
   .chartwrap { position: relative; }
-  canvas { width: 100%; display: block; background: #181818; }
-  #chart { height: 320px; } #spec { height: 260px; } #wf { height: 280px; }
-  .tip { position: absolute; pointer-events: none; background: #111; border: 1px solid #666; padding: 2px 5px;
-         display: none; white-space: nowrap; }
-  .tip .sw { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  canvas { width: 100%; display: block; }
+  #chart { height: 340px; } #wf { height: 260px; } #spec { height: 260px; }
+  .tip { position: absolute; pointer-events: none; background: #0c0e11; border: 1px solid var(--line2); border-radius: 6px; padding: 5px 8px;
+    display: none; white-space: nowrap; font-size: 12px; z-index: 2; }
+  .tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
-  #log { white-space: pre-wrap; height: 200px; overflow: auto; background: #111; border: 1px solid #333; padding: 3px; }
-  #log .me { color: #569cd6; } #log .err { color: #f44747; }
-  table.ir { border-collapse: collapse; margin-top: 4px; }
-  table.ir td, table.ir th { padding: 0 10px 0 0; text-align: right; }
-  table.ir th { color: #888; font-weight: normal; }
-  .dim { color: #888; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 9px; }
+  .row label { color: var(--muted); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+  #log { white-space: pre-wrap; height: 230px; overflow: auto; background: #0c0e11; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+    font: 12px/1.4 var(--mono); color: var(--soft); }
+  #log .me { color: #7db6f2; } #log .err { color: var(--bad); }
+  table.ir { border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  table.ir td, table.ir th { padding: 1px 12px 1px 0; text-align: right; font-family: var(--mono); }
+  table.ir th { color: var(--muted); font-weight: normal; font-family: inherit; }
+  .dim { color: var(--muted); }
+  body:not(.advanced) .adv { display: none !important; }
+  [hidden] { display: none !important; }
+
+  /* Channel editor */
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line2); border-radius: 12px; padding: 18px 20px; width: min(980px, 96vw); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog h3 { margin: 0 0 4px; font-size: 17px; }
+  dialog p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  .ed-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .ed-presets span { color: var(--muted); font-size: 12px; margin-right: 2px; }
+  #edSvg { width: 100%; display: block; user-select: none; }
+  #edSvg .bandbtn { cursor: pointer; }
+  #edSvg .bandbtn:hover rect { stroke: #5a6270; }
+  #edSvg .ch { cursor: pointer; }
+  #edSvg .ch.off { cursor: not-allowed; }
+  .ed-foot { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .ed-foot .count { color: var(--muted); font-size: 13px; margin-right: auto; }
+  footer { max-width: 1500px; margin: 0 auto; padding: 0 18px 26px; color: var(--muted); font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--soft); }
 </style>
 </head>
 <body>
-<header>
-  <h1>c5mk</h1>
-  <button id="btnConnect">connect</button>
-  <button id="btnDisconnect" disabled>disconnect</button>
-  <span id="linkPill" class="pill">not connected</span>
-  <span id="modePill" class="pill"></span>
-  <button id="btnScan" disabled>scan</button>
-  <label class="lbl">window <select id="selWindow"><option>5</option><option selected>10</option><option>30</option><option>60</option></select>s</label>
-  <label class="lbl">show <select id="selSeries"><option value="filt">filt</option><option value="raw">raw</option><option value="both">both</option></select></label>
-  <label class="lbl">y <select id="selY"><option value="fixed">-5..40</option><option value="auto">auto</option></select></label>
-  <button id="btnPause">pause</button>
-  <button id="btnFloor" title="store current levels as the floor; cards show the rise above it">set floor</button>
-  <button id="btnRec">rec csv</button>
-  <span id="recInfo" class="dim"></span>
+<header class="top">
+  <a class="brand" href="https://fpvgate.xyz/c5.html" title="FPVGate C5 radio">
+    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1f232a"/><path d="M6 22c4 0 4-12 8-12s4 12 8 12 3-6 4-6" fill="none" stroke="#3987e5" stroke-width="3" stroke-linecap="round"/></svg>
+    <b>C5MK</b><span class="sub">Live dashboard</span>
+  </a>
+  <div class="conn"><span class="dot" id="dot"></span><span id="connText">Not connected</span><span class="tag" id="modeTag"></span><span class="tag" id="radioTag"></span></div>
+  <div class="spacer"></div>
+  <label class="switch" title="Scanner settings, console and raw captures"><input type="checkbox" id="advToggle">Advanced</label>
+  <a class="btn-link" href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash firmware</a>
+  <button id="btnConnect" class="primary">Connect</button>
+  <button id="btnDisconnect" hidden>Disconnect</button>
 </header>
+
 <main>
-  <section>
-    <div class="stats">
-      <div class="stat" id="stCycle"><div class="v">-</div><div class="k">cycle ms</div></div>
-      <div class="stat" id="stRate"><div class="v">-</div><div class="k">upd/s/pilot</div></div>
-      <div class="stat" id="stGap"><div class="v">-</div><div class="k">max gap 2s ms</div></div>
-      <div class="stat" id="stSeq"><div class="v">0</div><div class="k">lost</div></div>
-      <div class="stat" id="stCrc"><div class="v">0</div><div class="k">crc</div></div>
-      <div class="stat" id="stDrops"><div class="v">0</div><div class="k">drops</div></div>
-      <div class="stat" id="stGain"><div class="v">-</div><div class="k">gain</div></div>
+  <div class="notice" id="notice"></div>
+
+  <section class="panel intro" id="intro">
+    <div>
+      <h1>See every pilot's signal, live</h1>
+      <p class="lead">This page talks to an FPVGate C5MK receiver over USB and shows what it hears on up to eight
+        5.8&nbsp;GHz channels, about a thousand times a second each. Use it to check a new receiver, find clear
+        channels, set RotorHazard thresholds or watch a pass go through the gate.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>Flash C5MK onto your ESP32-C5</b><span>Use the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a> (Waveshare C5-Zero, XIAO ESP32-C5 and others). Fit a 5.8&nbsp;GHz antenna.</span></div></li>
+        <li><span class="n">2</span><div><b>Plug the C5 into this computer</b><span>Use its USB-C port and a data cable. Close RotorHazard, serial monitors and other tabs using the port first: only one program can have it at a time.</span></div></li>
+        <li><span class="n">3</span><div><b>Press Connect and pick the C5</b><span>It shows as a USB JTAG/serial device. The browser remembers it, so next time the page reconnects on its own.</span></div></li>
+      </ol>
+      <button class="primary big-connect" id="btnConnect2">Connect receiver</button>
+      <div class="notice err" id="noSerial" hidden>This browser can't use USB serial devices. Open this page in <b>Chrome</b> or <b>Edge</b> on a desktop or laptop.</div>
+    </div>
+    <div class="side">
+      <h3>Good to know</h3>
+      <ul>
+        <li>Nothing leaves your computer: the page runs entirely in the browser.</li>
+        <li>Connecting takes the receiver back from RotorHazard if RH was using it. Restart RH when you're done here.</li>
+        <li>The receiver doesn't transmit, so it's safe to use beside a race.</li>
+        <li>Readings are in dB relative to the C5's own noise; what matters is how far a pilot rises above the floor.</li>
+      </ul>
+      <h3>More</h3>
+      <ul>
+        <li><a href="https://fpvgate.xyz/c5.html" target="_blank" rel="noopener">C5 radio guide and wiring</a></li>
+        <li><a href="https://github.com/LouisHitchcock/FPVGateC5MK/blob/main/docs/USB_ROTORHAZARD.md" target="_blank" rel="noopener">Using C5MK with RotorHazard</a></li>
+        <li><a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">C5MK on GitHub</a></li>
+      </ul>
     </div>
   </section>
 
-  <section>
-    <h2>rssi (dB re 1 LSB^2)</h2>
-    <div class="chartwrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
-  </section>
-
-  <section>
-    <h2>waterfall <span class="dim">(max per slice, newest at top)</span></h2>
-    <div class="chartwrap"><canvas id="wf"></canvas><div class="tip" id="wfTip"></div></div>
-  </section>
-
-  <section>
-    <h2>channels <span class="dim">(click to hide/show on chart)</span></h2>
-    <div class="cards" id="cards"></div>
-  </section>
-
-  <div class="grid2">
-    <section>
-      <h2>scanner</h2>
-      <div class="row">
-        <label class="lbl">band <select id="selBand"></select></label>
-        <button id="btnBand" class="needs">set band</button>
-        <input id="inPilots" size="30" placeholder="MHz list: 5880,5917" class="needs">
-        <button id="btnPilots" class="needs">set list</button>
+  <div id="live" hidden style="display:grid;gap:14px">
+    <section class="panel">
+      <div class="ph">
+        <h2>Channels</h2><span class="sub" id="chanSub"></span>
+        <div class="tools">
+          <button id="btnEdit" class="needs" title="Choose which channels the C5 scans">Edit channels</button>
+          <button id="btnAll" title="Show every channel on the charts">All</button>
+          <button id="btnNone" title="Hide every channel from the charts">None</button>
+        </div>
       </div>
-      <div class="row">
-        <label class="lbl">gain <input type="number" id="inGain" min="0" max="89" value="30" class="needs"></label>
-        <label class="lbl">settle us <input type="number" id="inSettle" min="0" max="5000" value="100" class="needs"></label>
-        <label class="lbl">n <select id="selN" class="needs"><option>512</option><option>1024</option><option selected>2048</option><option>4096</option></select></label>
-        <label class="lbl">alpha <input type="number" id="inAlpha" min="0.01" max="1" step="0.05" value="0.3" class="needs"></label>
-        <label class="lbl">bw <select id="selBw" class="needs"><option value="1">wide</option><option value="0">narrow</option></select></label>
-        <button id="btnApply" class="needs">apply</button>
-      </div>
-      <div class="row">
-        <button class="needs cmd" data-cmd="status">status</button>
-        <button class="needs cmd" data-cmd="timer">timer</button>
-        <button class="needs cmd" data-cmd="cmp 100">cmp 100</button>
-        <button class="needs cmd" data-cmd="regs">regs</button>
-        <button class="needs cmd" data-cmd="help">help</button>
+      <div class="cards" id="cards"></div>
+      <div class="health">
+        <span class="stat" id="stRate">readings/s per pilot<b>-</b></span>
+        <span class="stat" id="stCycle">cycle ms<b>-</b></span>
+        <span class="stat" id="stGap">longest gap ms<b>-</b></span>
+        <span class="stat" id="stGain">gain<b>-</b></span>
+        <span class="stat" id="stSeq">records lost<b>0</b></span>
+        <span class="stat" id="stCrc">CRC errors<b>0</b></span>
+        <span class="stat" id="stDrops">dropped on C5<b>0</b></span>
       </div>
     </section>
 
-    <section>
-      <h2>console</h2>
-      <div class="row">
-        <input id="inCmd" style="width:60%" placeholder="&gt;" class="needs">
-        <button id="btnSend" class="needs">send</button>
-        <button id="btnClear">clear</button>
+    <section class="panel">
+      <div class="ph">
+        <h2>RSSI history</h2>
+        <div class="tools">
+          <label>Show <select id="selSeries"><option value="filt">Smoothed</option><option value="raw">Raw</option><option value="both">Both</option></select></label>
+          <label>Window <select id="selWindow"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="30">30 s</option><option value="60">60 s</option></select></label>
+          <label>Scale <select id="selY"><option value="fixed">Fixed</option><option value="auto">Auto</option></select></label>
+          <button id="btnPause">Pause</button>
+          <button id="btnFloor" title="Store the current levels as each channel's floor; the cards then show the rise above it">Set floor</button>
+          <button id="btnRec" title="Record every reading to a CSV file">Record CSV</button>
+          <span id="recInfo" class="dim"></span>
+        </div>
       </div>
-      <div id="log"></div>
+      <div class="chartwrap"><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>Waterfall</h2><span class="sub">highest reading per slice · newest at top</span></div>
+      <div class="chartwrap"><canvas id="wf"></canvas><div class="tip" id="wfTip"></div></div>
+    </section>
+
+    <div class="grid2 adv">
+      <section class="panel">
+        <div class="ph"><h2>Scanner</h2><span class="sub">applies until the C5 restarts</span></div>
+        <div class="row">
+          <label>Gain <input type="number" id="inGain" min="0" max="89" value="30" class="needs"></label>
+          <label>Settle µs <input type="number" id="inSettle" min="0" max="5000" value="100" class="needs"></label>
+          <label>Samples <select id="selN" class="needs"><option>512</option><option>1024</option><option selected>2048</option><option>4096</option></select></label>
+          <label>Smoothing α <input type="number" id="inAlpha" min="0.01" max="1" step="0.05" value="0.3" class="needs"></label>
+          <label>Bandwidth <select id="selBw" class="needs"><option value="1">Wide</option><option value="0">Narrow</option></select></label>
+          <button id="btnApply" class="needs">Apply</button>
+        </div>
+        <div class="row">
+          <button id="btnScan" class="needs">Stop scanning</button>
+          <button class="needs cmd" data-cmd="status">status</button>
+          <button class="needs cmd" data-cmd="timer">timer</button>
+          <button class="needs cmd" data-cmd="cmp 100">cmp 100</button>
+          <button class="needs cmd" data-cmd="regs">regs</button>
+          <button class="needs cmd" data-cmd="help">help</button>
+        </div>
+        <div class="row">
+          <label>Channel list <input id="inPilots" size="34" placeholder="MHz, comma separated: 5658,5695,5732" class="needs"></label>
+          <button id="btnPilots" class="needs">Set</button>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="ph"><h2>Console</h2><div class="tools"><button id="btnClear">Clear</button></div></div>
+        <div id="log"></div>
+        <div class="row" style="margin:8px 0 0">
+          <input id="inCmd" style="flex:1" placeholder="Command, e.g. help" class="needs">
+          <button id="btnSend" class="needs">Send</button>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel adv">
+      <div class="ph"><h2>Raw capture</h2><span class="sub">x = RF offset from the LO, inversion corrected</span>
+        <div class="tools">
+          <label>LO MHz <input type="number" id="inLo" value="5870" min="5100" max="5950" class="needs"></label>
+          <label>Samples <select id="selCapN" class="needs"><option>2048</option><option selected>4096</option><option>8192</option></select></label>
+          <button id="btnCapture" class="needs">Capture</button>
+          <button id="btnCapPilot" class="needs" title="LO 10 MHz below the first visible channel">LO = channel − 10</button>
+        </div>
+      </div>
+      <div id="capInfo" class="dim" style="font-size:12px;margin-bottom:6px"></div>
+      <div class="chartwrap"><canvas id="spec"></canvas><div class="tip" id="specTip"></div></div>
+      <div id="irTable"></div>
     </section>
   </div>
-
-  <section>
-    <h2>raw capture <span class="dim">(x = RF offset from LO, inversion corrected)</span></h2>
-    <div class="row">
-      <label class="lbl">lo MHz <input type="number" id="inLo" value="5870" min="5100" max="5950" class="needs"></label>
-      <label class="lbl">n <select id="selCapN" class="needs"><option>2048</option><option selected>4096</option><option>8192</option></select></label>
-      <button id="btnCapture" class="needs">capture</button>
-      <button id="btnCapPilot" class="needs" title="LO 10 MHz below the first visible channel">lo = ch - 10</button>
-      <span id="capInfo" class="dim"></span>
-    </div>
-    <div class="chartwrap"><canvas id="spec"></canvas><div class="tip" id="specTip"></div></div>
-    <div id="irTable"></div>
-  </section>
 </main>
+
+<footer>
+  <span>FPVGate C5MK live dashboard · runs in your browser, nothing is uploaded</span>
+  <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
+  <a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">Source</a>
+</footer>
+
+<dialog id="editor">
+  <h3>Channels to scan</h3>
+  <p>Pick up to eight. Click a band name to take all of its channels. The C5 tunes 5180–5917&nbsp;MHz, so E7 and E8 are out of reach.</p>
+  <div class="ed-presets"><span>Presets</span>
+    <button data-preset="5658,5695,5732,5769,5806,5843,5880,5917">Raceband</button>
+    <button data-preset="5658,5695,5760,5800,5880,5917">IMD6</button>
+    <button data-preset="5658,5732,5843,5917">4 pilots (R1 R3 R6 R8)</button>
+  </div>
+  <svg id="edSvg"></svg>
+  <div class="ed-foot">
+    <span class="count" id="edCount"></span>
+    <label class="dim" style="font-size:12px">Add MHz <input type="number" id="edCustom" min="5180" max="5917" style="width:80px"></label>
+    <button id="edAdd">Add</button>
+    <button id="edClear">Clear</button>
+    <button id="edCancel">Cancel</button>
+    <button id="edOk" class="primary">Scan these</button>
+  </div>
+</dialog>
 
 <script>
 "use strict";
@@ -153,7 +315,9 @@
 // (kSpectrumSign in src/meter.h). The spectrum view uses it to label RF offsets.
 const SPECTRUM_SIGN = -1;
 const FS_MHZ = 80;
-const COLORS = ["#ff6b6b", "#ffd166", "#06d6a0", "#4cc9f0", "#a78bfa", "#f78c6b", "#7bd389", "#f472b6"];
+// Channel slot N always wears colour N: the 8-hue categorical palette, steps
+// chosen and checked for a dark surface.
+const COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
 // Public 5.8 GHz FPV channel tables, MHz.
 const BANDS = {
   R: [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917],
@@ -163,9 +327,11 @@ const BANDS = {
   F: [5740, 5760, 5780, 5800, 5820, 5840, 5860, 5880],
   L: [5362, 5399, 5436, 5473, 5510, 5547, 5584, 5621],
 };
-const BAND_LABEL = { R: "Raceband", A: "Band A", B: "Band B", E: "Band E", F: "Fatshark", L: "Lowband" };
+const BAND_LABEL = { R: "Raceband", A: "Boscam A", B: "Boscam B", E: "Boscam E", F: "Fatshark", L: "Lowband" };
+const MIN_MHZ = 5180, MAX_MHZ = 5917, MAX_PILOTS = 8;   // what the C5's PLL reaches (README)
 const FLAG = { FAIL: 1, GAIN: 2, CLIP: 4, FALLBACK: 8 };
 const HISTORY_S = 65;
+const ESPRESSIF_USB = [{ usbVendorId: 0x303A, usbProductId: 0x1001 }];
 const $ = id => document.getElementById(id);
 
 function channelName(mhz) {
@@ -176,7 +342,7 @@ function channelName(mhz) {
   return mhz + "";
 }
 
-// ---- log --------------------------------------------------------------------
+// ---- messages ------------------------------------------------------------------
 function log(text, cls) {
   const el = $("log");
   const span = document.createElement("span");
@@ -185,6 +351,12 @@ function log(text, cls) {
   el.appendChild(span);
   while (el.childNodes.length > 400) el.removeChild(el.firstChild);
   el.scrollTop = el.scrollHeight;
+}
+
+function notice(text, kind) {
+  const n = $("notice");
+  n.textContent = text || "";
+  n.className = "notice" + (kind === "err" ? " err" : "");
 }
 
 // ---- framing ----------------------------------------------------------------
@@ -219,11 +391,31 @@ function feed(chunk) {
   rxBuf = b.slice(Math.min(i, b.length));
 }
 
+const textDecoder = new TextDecoder();
 function onFrame(type, p) {
   const dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
-  if (type === "T") log(new TextDecoder().decode(p));
+  if (type === "T") onText(textDecoder.decode(p));
   else if (type === "R") onRecord(dv);
   else if (type === "C") onCaptureChunk(dv, p);
+}
+
+// Console replies: everything goes to the log; a few lines also feed the header.
+let lastGainMax = null;
+function onText(text) {
+  log(text);
+  const g = /gain (\d+) \(max (\d+)\)/.exec(text);
+  if (g) { $("inGain").value = g[1]; lastGainMax = +g[2]; }
+  const s = /scan (on|off)/.exec(text);
+  if (s) setScanning(s[1] === "on");
+  if (/-> live/.test(text)) setRadio("radio live", "");
+  else if (/NOT live/.test(text) && !/-> live/.test(text)) setRadio("radio check failed", "err");
+  const bad = /^pilots: .*/m.exec(text);
+  if (bad) notice("The C5 didn't accept that channel list: " + bad[0].replace(/^pilots: /, ""), "err");
+}
+
+function setRadio(text, kind) {
+  $("radioTag").textContent = text;
+  $("radioTag").style.color = kind === "err" ? "var(--bad)" : "";
 }
 
 // ---- RSSI records ------------------------------------------------------------
@@ -231,7 +423,6 @@ let pilots = [];          // { mhz, name, hidden, t[], raw[], filt[], flags[], f
 let tOffset = 0, tPrevUs = -1;   // unwraps the C5's 32-bit µs timestamps
 let lastCycleUs = 0, lastGain = null;
 let recording = false, recRows = [];
-let paused = false;
 
 function chipSeconds(us) {
   if (tPrevUs >= 0 && us < tPrevUs && tPrevUs - us > 2 ** 31) tOffset += 2 ** 32;
@@ -246,6 +437,7 @@ function ensurePilots(list) {
   pilots = list.map(m => ({ mhz: m, name: channelName(m), hidden: hiddenBefore.has(m), t: [], raw: [], filt: [],
                              flags: [], floor: null, lastFlags: 0, clips: 0 }));
   buildCards();
+  $("inPilots").value = list.join(",");
 }
 
 function onRecord(dv) {
@@ -262,6 +454,7 @@ function onRecord(dv) {
                 flags: dv.getUint8(o + 12) });
   }
   ensurePilots(recs.map(r => r.mhz));
+  showLive();
   if (hflags & 1) pilots.forEach(p => { p.t.length = p.raw.length = p.filt.length = p.flags.length = 0; });
   setMode(hflags & 2 ? "node" : "scan");
   recs.forEach((r, k) => {
@@ -269,7 +462,7 @@ function onRecord(dv) {
     const failed = r.flags & FLAG.FAIL;
     const t = chipSeconds(r.t);
     // In node mode a record repeats each frequency's latest reading until
-    // the S3 comes back to it: keep only new readings.
+    // the host comes back to it: keep only new readings.
     if (p.t.length && t === p.t[p.t.length - 1]) return;
     p.t.push(t);
     p.raw.push(failed ? NaN : r.raw / 100);
@@ -294,8 +487,7 @@ let mode = null;
 function setMode(m) {
   if (m === mode) return;
   mode = m;
-  $("modePill").textContent = m === "node" ? "node mode (S3 tuning)" : "scanner";
-  $("modePill").className = "pill " + (m === "node" ? "ok" : "");
+  $("modeTag").textContent = m === "node" ? "tuned by FPVGate" : "scanning";
 }
 
 function lowerBound(arr, v) {
@@ -305,18 +497,36 @@ function lowerBound(arr, v) {
 }
 
 // ---- cards -------------------------------------------------------------------
+const BAR_LO = -5, BAR_HI = 40;   // the fixed chart scale
+
 function buildCards() {
   const el = $("cards");
   el.innerHTML = "";
   pilots.forEach((p, k) => {
     const d = document.createElement("div");
     d.className = "card" + (p.hidden ? " hidden" : "");
-    d.style.borderLeftColor = COLORS[k % COLORS.length];
-    d.innerHTML = `<div class="name">${p.name}<span>${p.mhz} MHz</span></div>
-      <div class="db" id="cDb${k}">-</div><div class="rise" id="cRise${k}">&nbsp;</div>
-      <div class="meta" id="cMeta${k}"></div><div class="flags" id="cFlags${k}"></div>`;
-    d.onclick = () => { p.hidden = !p.hidden; d.classList.toggle("hidden", p.hidden); };
+    const col = COLORS[k % COLORS.length];
+    d.innerHTML = `<div class="top"><span class="sw" style="background:${col}"></span><span class="name">${p.name}</span>
+        <input type="checkbox" title="Show on the charts" ${p.hidden ? "" : "checked"}></div>
+      <div class="mhz">${p.mhz} MHz</div>
+      <div class="val" id="cVal${k}">–<small>dB</small></div>
+      <div class="bar"><i id="cBar${k}" style="background:${col}"></i></div>
+      <dl><dt>readings/s</dt><dd id="cRate${k}">–</dd>
+          <dt id="cRiseK${k}">min / max</dt><dd id="cRise${k}">–</dd></dl>
+      <div class="flags" id="cFlags${k}"></div>
+      <canvas class="spark" id="cSpark${k}"></canvas>`;
+    const box = d.querySelector("input");
+    box.onchange = () => { p.hidden = !box.checked; d.classList.toggle("hidden", p.hidden); };
     el.appendChild(d);
+  });
+  $("chanSub").textContent = pilots.length ? `${pilots.length} channel${pilots.length > 1 ? "s" : ""}` : "";
+}
+
+function setAllHidden(hidden) {
+  pilots.forEach(p => { p.hidden = hidden; });
+  document.querySelectorAll("#cards .card").forEach(c => {
+    c.classList.toggle("hidden", hidden);
+    c.querySelector("input").checked = !hidden;
   });
 }
 
@@ -336,24 +546,65 @@ function windowStats(p, secs) {
   return { mn, mx, mean: cnt ? sum / cnt : NaN, gapMs: gap * 1000, rate: span > 0 ? (n - 1 - j) / span : 0, fails, fl };
 }
 
+function drawSpark(p, k) {
+  const cv = $(`cSpark${k}`);
+  if (!cv) return;
+  const { ctx, W, H } = fitCanvas(cv);
+  ctx.clearRect(0, 0, W, H);
+  const n = p.t.length;
+  if (n < 2) return;
+  const tEnd = p.t[n - 1], t0 = tEnd - 10;
+  const j = lowerBound(p.t, t0);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = j; i < n; i++) { const v = p.filt[i]; if (!isNaN(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+  if (!isFinite(lo)) return;
+  if (hi - lo < 6) { const m = (hi + lo) / 2; lo = m - 3; hi = m + 3; }
+  // One point per pixel column (the highest), so a short pass still shows.
+  const cols = Math.max(2, Math.floor(W)), top = new Float32Array(cols).fill(NaN);
+  for (let i = j; i < n; i++) {
+    const c = Math.min(cols - 1, Math.floor((p.t[i] - t0) / 10 * cols)), v = p.filt[i];
+    if (!isNaN(v) && !(top[c] >= v)) top[c] = v;
+  }
+  ctx.strokeStyle = COLORS[k % COLORS.length];
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let pen = false;
+  for (let c = 0; c < cols; c++) {
+    if (isNaN(top[c])) continue;
+    const x = c * W / cols, y = H - 2 - (top[c] - lo) / (hi - lo) * (H - 4);
+    pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    pen = true;
+  }
+  ctx.stroke();
+}
+
 function renderCards() {
   let worstGap = 0, minRate = Infinity;
   pilots.forEach((p, k) => {
     const s = windowStats(p, 2);
     if (!s) return;
     const v = p.filt[p.filt.length - 1];
-    $(`cDb${k}`).textContent = v.toFixed(1);
-    $(`cRise${k}`).textContent = p.floor === null ? " " : `${(v - p.floor) >= 0 ? "+" : ""}${(v - p.floor).toFixed(1)} dB over floor`;
-    $(`cRise${k}`).style.color = p.floor !== null && v - p.floor > 6 ? "var(--ok)" : "var(--dim)";
-    const w = windowStats(p, +$("selWindow").value);
-    $(`cMeta${k}`).innerHTML = `${s.rate.toFixed(0)}/s · gap ${s.gapMs.toFixed(1)} ms<br>` +
-      `window min ${w.mn.toFixed(1)} · max ${w.mx.toFixed(1)}`;
+    $(`cVal${k}`).innerHTML = `${v.toFixed(1)}<small>dB</small>`;
+    const frac = p.floor === null ? (v - BAR_LO) / (BAR_HI - BAR_LO) : (v - p.floor) / 30;
+    $(`cBar${k}`).style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
+    $(`cRate${k}`).textContent = s.rate.toFixed(0);
+    if (p.floor === null) {
+      const w = windowStats(p, +$("selWindow").value);
+      $(`cRiseK${k}`).textContent = "min / max";
+      $(`cRise${k}`).textContent = `${w.mn.toFixed(0)} / ${w.mx.toFixed(0)}`;
+    } else {
+      const rise = v - p.floor;
+      $(`cRiseK${k}`).textContent = "above floor";
+      $(`cRise${k}`).textContent = `${rise >= 0 ? "+" : ""}${rise.toFixed(1)} dB`;
+      $(`cRise${k}`).style.color = rise > 6 ? "var(--ok)" : "";
+    }
     const f = [];
-    if (s.fl & FLAG.FAIL) f.push(`dump failed ×${s.fails}`);
-    if (s.fl & FLAG.CLIP) f.push("clipping");
-    if (s.fl & FLAG.GAIN) f.push("gain moved");
-    if (s.fl & FLAG.FALLBACK) f.push("stock fallback");
-    $(`cFlags${k}`).textContent = f.join(" · ");
+    if (s.fl & FLAG.FAIL) f.push(["bad", `capture failed ×${s.fails}`]);
+    if (s.fl & FLAG.CLIP) f.push(["warn", "clipping: lower the gain"]);
+    if (s.fl & FLAG.GAIN) f.push(["warn", "gain moved"]);
+    if (s.fl & FLAG.FALLBACK) f.push(["warn", "stock fallback"]);
+    $(`cFlags${k}`).innerHTML = f.map(([c, t]) => `<span class="chip ${c}">${t}</span>`).join("");
+    drawSpark(p, k);
     worstGap = Math.max(worstGap, s.gapMs);
     minRate = Math.min(minRate, s.rate);
   });
@@ -363,12 +614,12 @@ function renderCards() {
   setStat("stSeq", link.lost, link.lost ? "bad" : "");
   setStat("stCrc", link.crc, link.crc ? "bad" : "");
   setStat("stDrops", link.drops, link.drops ? "warn" : "");
-  setStat("stGain", lastGain ?? "-");
+  setStat("stGain", lastGain === null ? "-" : lastGain + (lastGainMax ? ` / ${lastGainMax}` : ""));
 }
 
 function setStat(id, v, cls) {
   const el = $(id);
-  el.querySelector(".v").textContent = v;
+  el.querySelector("b").textContent = v;
   el.className = "stat" + (cls ? " " + cls : "");
 }
 
@@ -387,20 +638,21 @@ function niceStep(range, target) {
   return p * (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10);
 }
 
+const AXIS_FONT = "11px system-ui, sans-serif";
 function drawAxes(ctx, box, x0, x1, y0, y1, xFmt) {
-  ctx.font = "11px Consolas, monospace";
-  ctx.strokeStyle = "#262b35";
-  ctx.fillStyle = "#8a93a3";
+  ctx.font = AXIS_FONT;
+  ctx.strokeStyle = "#252a32";
+  ctx.fillStyle = "#8a919c";
   ctx.lineWidth = 1;
   const ys = niceStep(y1 - y0, 6);
   for (let v = Math.ceil(y0 / ys) * ys; v <= y1; v += ys) {
-    const y = box.Y(v);
+    const y = Math.round(box.Y(v)) + 0.5;
     ctx.beginPath(); ctx.moveTo(box.l, y); ctx.lineTo(box.r, y); ctx.stroke();
     ctx.fillText(v.toFixed(ys < 1 ? 1 : 0), 4, y + 4);
   }
   const xs = niceStep(x1 - x0, 8);
   for (let v = Math.ceil(x0 / xs) * xs; v <= x1; v += xs) {
-    const x = box.X(v);
+    const x = Math.round(box.X(v)) + 0.5;
     ctx.beginPath(); ctx.moveTo(x, box.t); ctx.lineTo(x, box.b); ctx.stroke();
     ctx.fillText(xFmt(v), x - 12, box.b + 14);
   }
@@ -419,12 +671,17 @@ function chartView() {
   return { span, tEnd, t0: tEnd - span, mode: $("selSeries").value };
 }
 
+function emptyMessage(ctx, W, H, text) {
+  ctx.fillStyle = "#8a919c"; ctx.font = "13px system-ui, sans-serif";
+  ctx.fillText(text, 40, H / 2);
+}
+
 function renderChart() {
   const cv = $("chart"), { ctx, W, H } = fitCanvas(cv);
   ctx.clearRect(0, 0, W, H);
   const v = chartView();
-  if (!isFinite(v.tEnd)) return;
-  let y0 = -5, y1 = 40;
+  if (!isFinite(v.tEnd)) { emptyMessage(ctx, W, H, "Waiting for readings…"); return; }
+  let y0 = BAR_LO, y1 = BAR_HI;
   if ($("selY").value === "auto") {
     y0 = Infinity; y1 = -Infinity;
     pilots.forEach(p => {
@@ -436,16 +693,17 @@ function renderChart() {
         }
       }
     });
-    if (!isFinite(y0)) { y0 = -5; y1 = 40; }
+    if (!isFinite(y0)) { y0 = BAR_LO; y1 = BAR_HI; }
     const pad = Math.max(1, (y1 - y0) * 0.08);
     y0 -= pad; y1 += pad;
   }
-  const box = { l: 34, r: W - 84, t: 8, b: H - 20 };   // right margin holds the live labels
+  const box = { l: 34, r: W - 90, t: 8, b: H - 20 };   // right margin holds the live labels
   box.X = t => box.l + (t - v.t0) / v.span * (box.r - box.l);
   box.Y = d => box.b - (d - y0) / (y1 - y0) * (box.b - box.t);
   drawAxes(ctx, box, -v.span, 0, y0, y1, x => x.toFixed(0) + "s");
   ctx.save();
   ctx.beginPath(); ctx.rect(box.l, box.t, box.r - box.l, box.b - box.t); ctx.clip();
+  ctx.lineJoin = "round";
   pilots.forEach((p, k) => {
     if (p.hidden) return;
     const series = v.mode === "filt" ? [[p.filt, 2, 1]] : v.mode === "raw" ? [[p.raw, 1.2, 1]]
@@ -493,7 +751,7 @@ function drawLiveLabels(ctx, box, v) {
   const over = labels.length ? labels[labels.length - 1].y - (box.b - 6) : 0;
   if (over > 0) labels.forEach(l => { l.y -= over; });
   for (let i = labels.length - 2; i >= 0; i--) labels[i].y = Math.min(labels[i].y, labels[i + 1].y - gap);
-  ctx.font = "600 12px system-ui";
+  ctx.font = "600 12px system-ui, sans-serif";
   ctx.textBaseline = "middle";
   labels.forEach(l => {
     const col = COLORS[l.k % COLORS.length];
@@ -509,6 +767,7 @@ function drawLiveLabels(ctx, box, v) {
     ctx.beginPath();
     ctx.arc(l.x, Math.max(box.t, Math.min(box.b, l.yLine)), 2.5, 0, 2 * Math.PI);
     ctx.fill();
+    ctx.fillStyle = "#d4d8de";   // label text in ink; the dot and leader carry the colour
     ctx.fillText(`${l.name} ${l.val.toFixed(1)}`, box.r + 7, l.y);
   });
   ctx.textBaseline = "alphabetic";
@@ -518,7 +777,7 @@ function drawHover(box, v) {
   const cv = $("chart"), ctx = cv.getContext("2d");
   if (hoverX < box.l || hoverX > box.r) { $("tip").style.display = "none"; return; }
   const t = v.t0 + (hoverX - box.l) / (box.r - box.l) * v.span;
-  ctx.strokeStyle = "#8a93a3"; ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = "#8a919c"; ctx.setLineDash([4, 4]);
   ctx.beginPath(); ctx.moveTo(hoverX, box.t); ctx.lineTo(hoverX, box.b); ctx.stroke();
   ctx.setLineDash([]);
   let html = `<div class="dim">${(t - v.tEnd).toFixed(2)} s</div>`;
@@ -529,7 +788,7 @@ function drawHover(box, v) {
     if (j > 0 && Math.abs(p.t[j - 1] - t) < Math.abs(p.t[j] - t)) j--;
     const raw = isNaN(p.raw[j]) ? "fail" : p.raw[j].toFixed(1);
     html += `<div><span class="sw" style="background:${COLORS[k % COLORS.length]}"></span>${p.name} ` +
-            `${p.filt[j].toFixed(1)} <span class="dim">(raw ${raw})</span></div>`;
+            `${p.filt[j].toFixed(1)} dB <span class="dim">(raw ${raw})</span></div>`;
   });
   const tip = $("tip");
   tip.innerHTML = html;
@@ -545,8 +804,8 @@ $("chart").addEventListener("mouseleave", () => { hoverX = null; });
 // ---- waterfall -----------------------------------------------------------------
 // Every channel down the chart window, newest at the top. A cell is the highest
 // reading in its time slice, so a burst shorter than a slice still shows.
-const WF_STOPS = [[0, [10, 14, 40]], [0.35, [20, 110, 200]], [0.6, [50, 205, 200]], [0.8, [250, 215, 60]], [1, [255, 255, 255]]];
-function wfColor(x) {   // dark blue -> cyan -> yellow -> white over 0..1
+const WF_STOPS = [[0, [12, 16, 28]], [0.35, [24, 92, 170]], [0.6, [57, 160, 229]], [0.8, [176, 214, 250]], [1, [255, 255, 255]]];
+function wfColor(x) {   // one hue, dark to light, over 0..1
   x = Math.min(1, Math.max(0, x));
   for (let i = 1; i < WF_STOPS.length; i++) {
     const [b, cb] = WF_STOPS[i], [a, ca] = WF_STOPS[i - 1];
@@ -563,12 +822,8 @@ function renderWaterfall() {
   ctx.clearRect(0, 0, W, H);
   const v = chartView(), n = pilots.length;
   wf = null;
-  if (!isFinite(v.tEnd) || !n) {
-    ctx.fillStyle = "#8a93a3"; ctx.font = "12px Consolas, monospace";
-    ctx.fillText("No readings yet.", 40, H / 2);
-    return;
-  }
-  const box = { l: 40, r: W - 58, t: 4, b: H - 18 };
+  if (!isFinite(v.tEnd) || !n) { emptyMessage(ctx, W, H, "Waiting for readings…"); return; }
+  const box = { l: 44, r: W - 58, t: 4, b: H - 18 };
   const rows = Math.max(1, Math.round(box.b - box.t)), slice = v.span / rows;
   const db = new Float32Array(rows * n).fill(NaN);
   pilots.forEach((p, k) => {
@@ -579,16 +834,16 @@ function renderWaterfall() {
       if (!(db[j] >= a[i])) db[j] = a[i];
     }
   });
-  let lo = -5, hi = 40;
+  let lo = BAR_LO, hi = BAR_HI;
   if ($("selY").value === "auto") {
     lo = Infinity; hi = -Infinity;
     db.forEach(x => { if (!isNaN(x)) { lo = Math.min(lo, x); hi = Math.max(hi, x); } });
-    if (!(hi > lo)) { lo = -5; hi = 40; }
+    if (!(hi > lo)) { lo = BAR_LO; hi = BAR_HI; }
   }
   wfImage.width = n; wfImage.height = rows;
   const ictx = wfImage.getContext("2d"), img = ictx.createImageData(n, rows);
   for (let j = 0; j < rows * n; j++) {
-    const c = isNaN(db[j]) ? [15, 17, 21] : wfColor((db[j] - lo) / (hi - lo));
+    const c = isNaN(db[j]) ? [17, 19, 23] : wfColor((db[j] - lo) / (hi - lo));
     img.data[4 * j] = c[0]; img.data[4 * j + 1] = c[1]; img.data[4 * j + 2] = c[2]; img.data[4 * j + 3] = 255;
   }
   ictx.putImageData(img, 0, 0);
@@ -596,14 +851,17 @@ function renderWaterfall() {
   ctx.drawImage(wfImage, box.l, box.t, box.r - box.l, box.b - box.t);
   // Channel names under their columns, and gaps between the columns.
   const colW = (box.r - box.l) / n;
-  ctx.font = "11px Consolas, monospace";
+  ctx.font = AXIS_FONT;
   pilots.forEach((p, k) => {
+    ctx.fillStyle = "#c3c8d0";
+    const label = p.name, w = ctx.measureText(label).width, cx = box.l + colW * (k + 0.5);
+    ctx.fillText(label, cx - w / 2 + 6, box.b + 13);
     ctx.fillStyle = COLORS[k % COLORS.length];
-    ctx.fillText(p.name, box.l + colW * (k + 0.5) - ctx.measureText(p.name).width / 2, box.b + 13);
-    if (k) { ctx.fillStyle = "#0f1115"; ctx.fillRect(box.l + colW * k - 1, box.t, 2, box.b - box.t); }
+    ctx.fillRect(cx - w / 2 - 4, box.b + 6, 7, 7);
+    if (k) { ctx.fillStyle = "#191c21"; ctx.fillRect(box.l + colW * k - 1, box.t, 2, box.b - box.t); }
   });
   // Seconds ago, down the left.
-  ctx.fillStyle = "#8a93a3";
+  ctx.fillStyle = "#8a919c";
   const ts = niceStep(v.span, 5);
   for (let s = 0; s <= v.span + 1e-9; s += ts) ctx.fillText((s ? "-" : "") + s.toFixed(0) + " s", 2, box.t + s / slice + 4);
   // The colour scale, down the right.
@@ -613,7 +871,7 @@ function renderWaterfall() {
     ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
     ctx.fillRect(lx, y, 10, 1);
   }
-  ctx.fillStyle = "#8a93a3";
+  ctx.fillStyle = "#8a919c";
   const ds = niceStep(hi - lo, 5);
   for (let d = Math.ceil(lo / ds) * ds; d <= hi; d += ds) {
     ctx.fillText(d.toFixed(0), lx + 13, box.b - (d - lo) / (hi - lo) * (box.b - box.t) + 4);
@@ -721,13 +979,11 @@ function analyseCapture(c) {
 }
 
 function renderSpectrum() {
-  const cv = $("spec"), { ctx, W, H } = fitCanvas(cv);
+  const cv = $("spec");
+  if (!cv.offsetParent) return;   // hidden (Advanced off)
+  const { ctx, W, H } = fitCanvas(cv);
   ctx.clearRect(0, 0, W, H);
-  if (!spec) {
-    ctx.fillStyle = "#8a93a3"; ctx.font = "12px Consolas, monospace";
-    ctx.fillText("No capture yet. Captures pause the scan for a moment.", 40, H / 2);
-    return;
-  }
+  if (!spec) { emptyMessage(ctx, W, H, "No capture yet. A capture pauses the scan for a moment."); return; }
   const y1 = Math.ceil(Math.max(...spec.db) / 10) * 10 + 5, y0 = Math.min(-30, Math.floor(Math.min(...spec.db) / 10) * 10);
   const box = { l: 34, r: W - 8, t: 8, b: H - 20 };
   box.X = f => box.l + (f + 40) / 80 * (box.r - box.l);
@@ -735,40 +991,146 @@ function renderSpectrum() {
   drawAxes(ctx, box, -40, 40, y0, y1, x => (x > 0 ? "+" : "") + x.toFixed(0));
   spec.near.forEach(p => {
     const k = pilots.findIndex(q => q.mhz === p.mhz), col = COLORS[k % COLORS.length];
-    ctx.fillStyle = col; ctx.globalAlpha = 0.14;
+    ctx.fillStyle = col; ctx.globalAlpha = 0.16;
     ctx.fillRect(box.X(p.off - 4), box.t, box.X(p.off + 4) - box.X(p.off - 4), box.b - box.t);
-    ctx.globalAlpha = 0.06;
+    ctx.globalAlpha = 0.07;
     ctx.fillRect(box.X(-p.off - 4), box.t, box.X(-p.off + 4) - box.X(-p.off - 4), box.b - box.t);
-    ctx.globalAlpha = 1; ctx.font = "11px Consolas, monospace";
-    ctx.fillText(p.name, box.X(p.off) - 8, box.t + 12);
-    ctx.fillStyle = "#8a93a3"; ctx.fillText("mirror", box.X(-p.off) - 16, box.t + 12);
+    ctx.globalAlpha = 1; ctx.font = AXIS_FONT;
+    ctx.fillStyle = "#d4d8de"; ctx.fillText(p.name, box.X(p.off) - 8, box.t + 12);
+    ctx.fillStyle = "#8a919c"; ctx.fillText("mirror", box.X(-p.off) - 16, box.t + 12);
   });
-  ctx.strokeStyle = "#d8dce4"; ctx.lineWidth = 1.3; ctx.beginPath();
+  ctx.strokeStyle = "#e3e6eb"; ctx.lineWidth = 1.3; ctx.beginPath();
   spec.f.forEach((f, i) => { const x = box.X(f), y = box.Y(spec.db[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.stroke();
-  ctx.fillStyle = "#8a93a3"; ctx.font = "11px Consolas, monospace";
+  ctx.fillStyle = "#8a919c"; ctx.font = AXIS_FONT;
   ctx.fillText("MHz from LO (" + spec.lo + ")", box.r - 110, box.b - 6);
 }
 
-// ---- serial --------------------------------------------------------------------
-let port = null, reader = null, writer = null, scanning = true;
+// ---- channel editor -------------------------------------------------------------
+let edSel = [];
+const ED_MAIN = { lo: 5630, hi: 5960, bands: ["R", "A", "B", "E", "F"] };
+const ED_LOW = { lo: 5340, hi: 5640, bands: ["L"] };
 
-async function connect() {
+function openEditor() {
+  edSel = pilots.map(p => p.mhz);
+  drawEditor();
+  $("editor").showModal();
+}
+
+function toggleCh(mhz) {
+  const i = edSel.indexOf(mhz);
+  if (i >= 0) edSel.splice(i, 1);
+  else if (edSel.length < MAX_PILOTS) edSel.push(mhz);
+  drawEditor();
+}
+
+function drawEditor() {
+  const svg = $("edSvg"), NS = "http://www.w3.org/2000/svg";
+  const W = 940, labelW = 96, rowH = 46, axisH = 22, gapH = 24;
+  const sections = [ED_MAIN, ED_LOW];
+  const H = sections.reduce((h, s) => h + axisH + s.bands.length * rowH, 0) + gapH;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = "";
+  const el = (tag, attrs, parent = svg) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    parent.appendChild(e);
+    return e;
+  };
+  const sel = new Set(edSel);
+  let y = 0;
+  sections.forEach((s, si) => {
+    const X = f => labelW + 10 + (f - s.lo) / (s.hi - s.lo) * (W - labelW - 20);
+    // Frequency axis
+    for (let f = Math.ceil(s.lo / 50) * 50; f <= s.hi; f += 50) {
+      const t = el("text", { x: X(f), y: y + 14, fill: "#8a919c", "font-size": 11, "text-anchor": "middle" });
+      t.textContent = f;
+      el("line", { x1: X(f), x2: X(f), y1: y + axisH, y2: y + axisH + s.bands.length * rowH, stroke: "#22262d" });
+    }
+    y += axisH;
+    s.bands.forEach(b => {
+      const g = el("g", { class: "bandbtn" });
+      el("rect", { x: 2, y: y + 5, width: labelW - 6, height: rowH - 10, rx: 6, fill: "#1f232a", stroke: "#353b45" }, g);
+      const t1 = el("text", { x: labelW / 2 - 1, y: y + rowH / 2 - 1, fill: "#e8eaee", "font-size": 14, "font-weight": 700, "text-anchor": "middle" }, g);
+      t1.textContent = b;
+      const t2 = el("text", { x: labelW / 2 - 1, y: y + rowH / 2 + 13, fill: "#8a919c", "font-size": 10, "text-anchor": "middle" }, g);
+      t2.textContent = BAND_LABEL[b];
+      g.addEventListener("click", () => {
+        edSel = BANDS[b].filter(f => f >= MIN_MHZ && f <= MAX_MHZ).slice(0, MAX_PILOTS);
+        drawEditor();
+      });
+      el("line", { x1: labelW, x2: W, y1: y + rowH, y2: y + rowH, stroke: "#22262d" });
+      BANDS[b].forEach((f, i) => {
+        const ok = f >= MIN_MHZ && f <= MAX_MHZ, on = sel.has(f);
+        const k = edSel.indexOf(f), col = on ? COLORS[k % COLORS.length] : "#3a404a";
+        const cx = X(f), base = y + rowH - 3, top = y + 7, half = (X(f + 9) - X(f - 9)) / 2;
+        const g2 = el("g", { class: "ch" + (ok ? "" : " off") });
+        // A bell for the channel's ~18 MHz of FM video.
+        const d = `M${cx - half * 1.6},${base} C${cx - half * 0.7},${base} ${cx - half * 0.55},${top} ${cx},${top} ` +
+                  `C${cx + half * 0.55},${top} ${cx + half * 0.7},${base} ${cx + half * 1.6},${base} Z`;
+        el("path", { d, fill: col, "fill-opacity": on ? 0.95 : ok ? 0.35 : 0.12, stroke: on ? col : "none" }, g2);
+        const n = el("text", { x: cx, y: y + rowH / 2 + 3, fill: on ? "#fff" : ok ? "#c3c8d0" : "#5c636e", "font-size": 12, "font-weight": 700, "text-anchor": "middle" }, g2);
+        n.textContent = b + (i + 1);
+        const m = el("text", { x: cx, y: y + rowH / 2 + 16, fill: on ? "#f0f3f7" : ok ? "#8a919c" : "#4e555f", "font-size": 9.5, "text-anchor": "middle" }, g2);
+        m.textContent = f;
+        const tt = el("title", {}, g2);
+        tt.textContent = ok ? `${b}${i + 1} · ${f} MHz` : `${b}${i + 1} · ${f} MHz: out of the C5's range`;
+        if (ok) g2.addEventListener("click", () => toggleCh(f));
+      });
+      y += rowH;
+    });
+    if (si === 0) y += gapH;
+  });
+  const extra = edSel.filter(f => !Object.values(BANDS).some(b => b.includes(f)));
+  $("edCount").textContent = `${edSel.length} of ${MAX_PILOTS} selected` + (extra.length ? ` (incl. ${extra.join(", ")} MHz)` : "");
+  $("edOk").disabled = !edSel.length;
+}
+
+// ---- serial --------------------------------------------------------------------
+let port = null, reader = null, writer = null, scanning = true, connecting = false;
+
+async function openPort(p, quiet) {
+  if (port || connecting) return;
+  connecting = true;
+  setConnState("busy", "Connecting…");
   try {
-    port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 115200, bufferSize: 1 << 16 });
+    await p.open({ baudRate: 115200, bufferSize: 1 << 16 });
     // Keep DTR and RTS low so opening the port doesn't reset the C5.
-    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await p.setSignals({ dataTerminalReady: false, requestToSend: false });
   } catch (e) {
-    log(`Connect failed: ${e.message}\n`, "err");
-    port = null;
+    connecting = false;
+    setConnected(false);
+    if (!quiet) {
+      const busy = /open|in use|access/i.test(e.message);
+      notice(busy ? "The receiver's port is in use. Close RotorHazard, serial monitors and other tabs using it, then press Connect."
+                  : `Couldn't open the receiver: ${e.message}`, "err");
+    }
     return;
   }
+  port = p;
+  connecting = false;
   writer = port.writable.getWriter();
-  setConnected(true);
   Object.assign(link, { crc: 0, lost: 0, drops: 0, lastSeq: -1 });
-  await send("status");
+  notice("");
+  setConnected(true);
   readLoop();
+  await send("status");
+  // A C5 that RotorHazard had, or that an S3 had stopped, starts scanning again.
+  if (!pilots.length) setTimeout(() => { if (port && !pilots.length) send("scan on"); }, 1500);
+  setTimeout(() => {
+    if (port && !pilots.length) notice("Connected, but no readings yet. Is this a C5 running C5MK firmware? The Flash firmware button installs it.");
+  }, 4000);
+}
+
+async function connect() {
+  if (!("serial" in navigator)) { notice("This browser can't use USB serial devices. Use Chrome or Edge on a desktop.", "err"); return; }
+  let p;
+  try {
+    p = await navigator.serial.requestPort({ filters: ESPRESSIF_USB });
+  } catch (e) {
+    return;   // picker closed
+  }
+  await openPort(p, false);
 }
 
 async function readLoop() {
@@ -785,16 +1147,17 @@ async function readLoop() {
     reader.releaseLock();
     reader = null;
   }
-  if (port) await disconnect();
+  if (port) await disconnect(true);
 }
 
-async function disconnect() {
+async function disconnect(lost) {
   const p = port;
   port = null;
   try { if (reader) await reader.cancel(); } catch (e) {}
   try { if (writer) { writer.releaseLock(); writer = null; } } catch (e) {}
   try { if (p) await p.close(); } catch (e) {}
   setConnected(false);
+  if (lost) notice("The receiver was disconnected. Plug it back in and the page reconnects.");
 }
 
 async function send(line) {
@@ -803,51 +1166,66 @@ async function send(line) {
   await writer.write(new TextEncoder().encode(line.trim() + "\n"));
 }
 
+function setConnState(state, text) {
+  $("dot").className = "dot" + (state === "ok" ? " ok" : state === "busy" ? " busy" : "");
+  $("connText").textContent = text;
+}
+
 function setConnected(on) {
-  $("btnConnect").disabled = on;
-  $("btnDisconnect").disabled = !on;
-  $("btnScan").disabled = !on;
+  $("btnConnect").hidden = on;
+  $("btnDisconnect").hidden = !on;
+  $("btnConnect2").disabled = on;
   document.querySelectorAll(".needs").forEach(el => { el.disabled = !on; });
-  $("linkPill").className = "pill " + (on ? "ok" : "");
-  $("linkPill").textContent = on ? "connected" : "not connected";
+  setConnState(on ? "ok" : "", on ? "Connected" : "Not connected");
+  if (!on) { $("modeTag").textContent = ""; mode = null; }
+  if (on) showLive();
+}
+
+function setScanning(on) {
+  scanning = on;
+  $("btnScan").textContent = on ? "Stop scanning" : "Start scanning";
+  $("btnScan").classList.toggle("on", !on);
+}
+
+function showLive() {
+  if (!$("live").hidden) return;
+  $("intro").hidden = true;
+  $("live").hidden = false;
 }
 
 // ---- controls ------------------------------------------------------------------
-for (const b of Object.keys(BANDS)) $("selBand").add(new Option(BAND_LABEL[b], b));
 $("btnConnect").onclick = connect;
-$("btnDisconnect").onclick = disconnect;
-$("btnScan").onclick = async () => {
-  scanning = !scanning;
-  $("btnScan").classList.toggle("on", !scanning);
-  $("btnScan").textContent = scanning ? "scan" : "scan (stopped)";
-  await send(scanning ? "scan on" : "scan off");
-};
+$("btnConnect2").onclick = connect;
+$("btnDisconnect").onclick = () => disconnect(false);
+$("btnScan").onclick = () => send(scanning ? "scan off" : "scan on");
 $("btnPause").onclick = () => {
-  if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "resume"; $("btnPause").classList.add("on"); }
-  else { frozenEnd = null; $("btnPause").textContent = "pause"; $("btnPause").classList.remove("on"); }
+  if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
+  else { frozenEnd = null; $("btnPause").textContent = "Pause"; $("btnPause").classList.remove("on"); }
 };
 $("btnFloor").onclick = () => pilots.forEach(p => { const s = windowStats(p, 2); if (s) p.floor = s.mean; });
 $("btnRec").onclick = () => {
   if (!recording) {
     recording = true;
     recRows = [];
-    $("btnRec").textContent = "stop + save";
+    $("btnRec").textContent = "Stop and save";
     $("btnRec").classList.add("on");
-    $("recInfo").textContent = "recording...";
+    $("recInfo").textContent = "recording…";
     return;
   }
   recording = false;
-  $("btnRec").textContent = "rec csv";
+  $("btnRec").textContent = "Record CSV";
   $("btnRec").classList.remove("on");
   const head = "seq," + pilots.map(p => `${p.name}_t_us,${p.name}_raw,${p.name}_filt,${p.name}_flags`).join(",");
   const blob = new Blob([head + "\n" + recRows.join("\n") + "\n"], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `rssi-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.csv`;
+  a.download = `c5mk-rssi-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.csv`;
   a.click();
   $("recInfo").textContent = `saved ${recRows.length} cycles`;
 };
-$("btnBand").onclick = () => send("pilots " + BANDS[$("selBand").value].join(","));
+$("btnAll").onclick = () => setAllHidden(false);
+$("btnNone").onclick = () => setAllHidden(true);
+$("btnEdit").onclick = openEditor;
 $("btnPilots").onclick = () => { const v = $("inPilots").value.trim(); if (v) send("pilots " + v); };
 $("btnApply").onclick = async () => {
   await send("gain " + $("inGain").value);
@@ -865,17 +1243,60 @@ $("btnCapPilot").onclick = () => {
   const p = pilots.find(q => !q.hidden);
   if (p) { $("inLo").value = p.mhz - 10; $("btnCapture").click(); }
 };
-if (!("serial" in navigator)) log("This browser has no Web Serial. Use Chrome or Edge.\n", "err");
+
+// Channel editor
+document.querySelectorAll("[data-preset]").forEach(b => {
+  b.onclick = () => { edSel = b.dataset.preset.split(",").map(Number); drawEditor(); };
+});
+$("edClear").onclick = () => { edSel = []; drawEditor(); };
+$("edCancel").onclick = () => $("editor").close();
+$("edAdd").onclick = () => {
+  const f = Math.round(+$("edCustom").value);
+  if (f >= MIN_MHZ && f <= MAX_MHZ && !edSel.includes(f) && edSel.length < MAX_PILOTS) { edSel.push(f); drawEditor(); }
+  $("edCustom").value = "";
+};
+$("edOk").onclick = () => {
+  const list = [...edSel].sort((a, b) => a - b);
+  $("editor").close();
+  if (list.length) send("pilots " + list.join(","));
+};
+
+// Advanced view, remembered between visits.
+const ADV_KEY = "c5mk.advanced";
+function setAdvanced(on) {
+  document.body.classList.toggle("advanced", on);
+  $("advToggle").checked = on;
+  try { localStorage.setItem(ADV_KEY, on ? "1" : "0"); } catch (e) {}
+  if (on) requestAnimationFrame(renderSpectrum);
+}
+$("advToggle").onchange = () => setAdvanced($("advToggle").checked);
+try { setAdvanced(localStorage.getItem(ADV_KEY) === "1"); } catch (e) { setAdvanced(false); }
+
 setConnected(false);
+$("intro").hidden = false;
+if (!("serial" in navigator)) {
+  $("noSerial").hidden = false;
+  $("btnConnect").disabled = $("btnConnect2").disabled = true;
+} else {
+  // A receiver this browser has been allowed to use before: connect on load,
+  // and whenever one is plugged back in.
+  navigator.serial.getPorts().then(ports => {
+    const p = ports.find(q => { const i = q.getInfo(); return i.usbVendorId === 0x303A; });
+    if (p) openPort(p, true);
+  });
+  navigator.serial.addEventListener("connect", e => { if (!port) openPort(e.target, true); });
+  navigator.serial.addEventListener("disconnect", e => { if (port && e.target === port) disconnect(true); });
+}
 
 let lastCards = 0, lastWaterfall = 0;
 function frame(ts) {
-  renderChart();
-  if (ts - lastWaterfall > 100) { renderWaterfall(); lastWaterfall = ts; }
-  if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
+  if (!$("live").hidden) {
+    renderChart();
+    if (ts - lastWaterfall > 100) { renderWaterfall(); lastWaterfall = ts; }
+    if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
+  }
   requestAnimationFrame(frame);
 }
-renderSpectrum();
 window.addEventListener("resize", renderSpectrum);
 requestAnimationFrame(frame);
 </script>
