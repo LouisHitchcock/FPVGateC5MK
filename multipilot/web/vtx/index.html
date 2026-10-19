@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<!-- VTX check: which channel a quad's video transmitter is on, whether it's on
+     the right frequency, and its power compared with a known 25 mW reference.
+     A C5MK receiver on USB; the work happens in the page (vtxscan.js).
+     Published at https://c5mk.fpvgate.xyz/vtx/. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111317">
+<title>VTX Check | FPVGate C5MK</title>
+<meta name="description" content="Find which channel a quad's video transmitter is on, and check its power against a 25 mW reference, with a C5MK receiver.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #111317; --panel: #191c21; --panel2: #1f232a; --line: #2a2f37; --line2: #353b45;
+    --text: #eef0f3; --soft: #bfc5ce; --muted: #8a919c; --accent: #3987e5; --accent-dim: #1d3a5c;
+    --ok: #3dbb7c; --warn: #d9a33a; --bad: #e05d5d;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  button { font: inherit; color: var(--text); cursor: pointer; border: 1px solid var(--line2); background: var(--panel2); border-radius: 12px; padding: 10px 16px; min-height: 48px; }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button:disabled { opacity: .45; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  button.big { width: 100%; font-size: 19px; min-height: 60px; border-radius: 16px; }
+  header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top)); background: rgba(17,19,23,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  header .title { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  header .title small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+  header .spacer { flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555c66; flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(61,187,124,.18); }
+  .dot.busy { background: var(--warn); }
+  #connText { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); display: grid; gap: 16px; }
+  main > *, .card { min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  h1 { font-size: 28px; margin: 4px 0 6px; line-height: 1.15; }
+  h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  p { margin: 0; color: var(--soft); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .notice { border-radius: 12px; padding: 12px 14px; font-size: 15px; background: #2a2316; border: 1px solid #5a4823; color: #f1d9a3; }
+  .notice.err { background: #2c1717; border-color: #6a2a2a; color: #f4b9b9; }
+  .notice:empty { display: none; }
+  [hidden] { display: none !important; }
+  @media (max-width: 440px) { header .title small { display: none; } }
+
+  .progress { height: 6px; border-radius: 3px; background: #2b3039; overflow: hidden; margin-top: 12px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .found { display: grid; gap: 4px; }
+  .found .ch { font: 800 56px/1 var(--mono); letter-spacing: -.02em; }
+  .found .mhz { font-size: 20px; color: var(--soft); }
+  .verdict { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; margin-top: 8px; padding: 6px 12px; border-radius: 999px; width: fit-content; }
+  .verdict.ok { background: #12291e; color: #bff0d6; border: 1px solid #2a6a4b; }
+  .verdict.warn { background: #2a2316; color: #f1d9a3; border: 1px solid #5a4823; }
+  .verdict.bad { background: #2c1717; color: #f4b9b9; border: 1px solid #6a2a2a; }
+
+  /* band grid: a row per band, a cell per channel, shaded by how strongly it was seen */
+  .grid { display: grid; grid-template-columns: 34px repeat(8, 1fr); gap: 4px; font-size: 12px; }
+  .grid .band { color: var(--muted); font-weight: 700; display: grid; place-items: center; }
+  .grid .cell { border-radius: 6px; padding: 5px 0 4px; text-align: center; line-height: 1.15; border: 2px solid transparent; min-width: 0; }
+  .grid .cell b { display: block; font-size: 12px; }
+  .grid .cell span { font: 11px var(--mono); opacity: .85; }
+  .grid .cell.win { border-color: #fff; }
+  .grid .cell.off { background: #1a1d22; color: #4e555f; }
+  .legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .legend i { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1b2230, #185cab, #39a0e5, #b0d6fa); }
+
+  .power { display: grid; gap: 12px; }
+  .power .big { font: 800 34px/1.1 var(--mono); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > button { flex: 1; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 4px 16px 24px; }
+  footer a { color: var(--soft); }
+</style>
+</head>
+<body>
+<header>
+  <svg width="44" height="18" viewBox="0 0 585 240" fill="none" aria-hidden="true"><path d="M 34 137 H 94 C 123 137 128 96 157 96 C 194 96 196 204 231 204 C 264 204 284 34 317 34 C 351 34 357 183 384 183 C 409 183 413 115 439 115 C 457 115 467 137 489 137 H 551" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span class="title">VTX Check<small>FPVGate C5MK</small></span>
+  <span class="spacer"></span>
+  <span class="dot" id="dot"></span><span id="connText">Not connected</span>
+</header>
+
+<main>
+  <div class="notice" id="notice"></div>
+
+  <section class="card" id="cardConnect">
+    <h1>Which channel is my quad on?</h1>
+    <p>Plug in a C5MK receiver, power up the quad nearby, and this page finds its video channel, checks it's on the right
+      frequency, and compares its power with a 25 mW reference.</p>
+    <button class="primary big" id="btnConnect" style="margin-top:16px">Connect receiver</button>
+    <div class="notice err" id="noUsb" hidden style="margin-top:12px"></div>
+  </section>
+
+  <section class="card" id="cardCheck" hidden>
+    <h2>Find the channel</h2>
+    <p>Power up one quad, about a metre from the receiver. Turn other video transmitters off.</p>
+    <button class="primary big" id="btnCheck" style="margin-top:14px">Check VTX</button>
+    <div class="progress" id="prog" hidden><i></i></div>
+  </section>
+
+  <section class="card" id="cardResult" hidden>
+    <div class="found">
+      <div class="muted">Your VTX is on</div>
+      <div class="ch" id="resCh">–</div>
+      <div class="mhz" id="resMhz"></div>
+      <div class="verdict" id="resFreq"></div>
+    </div>
+  </section>
+
+  <section class="card" id="cardGrid" hidden>
+    <h2>Every channel</h2>
+    <div class="grid" id="grid"></div>
+    <div class="legend"><span>quiet</span><i></i><span>strong</span></div>
+    <p class="muted" style="margin-top:10px">Numbers are dB above the quietest channels. Strong neighbours of the winner are
+      normal: a video signal is about 18 MHz wide.</p>
+  </section>
+
+  <section class="card power" id="cardPower" hidden>
+    <h2>Power check</h2>
+    <div id="powerBody"></div>
+    <div class="row">
+      <button id="btnMeasure">Measure this quad</button>
+      <button id="btnRef">Use as 25 mW reference</button>
+    </div>
+    <p class="muted">How it works: put a quad you know is 25 mW at a marked spot (same distance, same way round), and save it
+      as the reference. Then put each quad on the same spot. 200 mW reads about 9 dB higher, 600 mW about 14 dB. This compares
+      against your reference; it isn't a calibrated power meter, and walls, hands and antenna angle all move the reading a dB
+      or two.</p>
+  </section>
+</main>
+
+<footer>
+  <a href="../">Live signal view</a> · <a href="../timer/">Lap timer</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
+</footer>
+
+<script type="module">
+import { C5Link, BANDS, MIN_MHZ, MAX_MHZ, channelName, whyNoTransport, FLAG } from "../c5mk-link.js";
+import { bandChannels, fill8, sweep, strongest, fineCentre, median } from "../vtxscan.js";
+
+const $ = id => document.getElementById(id);
+const REF_KEY = "c5mk.vtx.reference";
+const BAND_ORDER = ["R", "F", "A", "B", "E", "L"];
+const link = new C5Link();
+let busy = false;
+let found = null;      // { mhz, centre }
+let lastLevel = null;  // { db, gain, clipped, mhz }
+let gain = null;       // the C5's receive gain, from its status reply
+
+const loadRef = () => { try { return JSON.parse(localStorage.getItem(REF_KEY)); } catch (e) { return null; } };
+const saveRef = r => { try { localStorage.setItem(REF_KEY, JSON.stringify(r)); } catch (e) {} };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function notice(text, err) {
+  $("notice").textContent = text || "";
+  $("notice").className = "notice" + (err ? " err" : "");
+}
+
+link.addEventListener("state", e => {
+  const { connected, text } = e.detail;
+  $("dot").className = "dot" + (connected ? " ok" : /Connecting/.test(text) ? " busy" : "");
+  $("connText").textContent = connected ? "Connected" : /Connecting/.test(text) ? "Connecting…" : "Not connected";
+  $("cardConnect").hidden = connected;
+  $("cardCheck").hidden = !connected;
+  if (connected) { notice(""); link.send("scan on"); }
+  else if (!/Connecting|Not connected/.test(text)) notice(text, true);
+});
+link.addEventListener("text", e => {
+  const g = /gain (\d+) \(max/.exec(e.detail);
+  if (g) gain = +g[1];
+});
+
+// Levels shaded like the dashboard's waterfall: one hue, dark to light.
+function shade(x) {
+  const stops = [[0, [27, 34, 48]], [0.4, [24, 92, 171]], [0.7, [57, 160, 229]], [1, [176, 214, 250]]];
+  x = Math.max(0, Math.min(1, x));
+  for (let i = 1; i < stops.length; i++) {
+    const [b, cb] = stops[i], [a, ca] = stops[i - 1];
+    if (x <= b) return `rgb(${ca.map((c, k) => Math.round(c + (cb[k] - c) * (x - a) / (b - a))).join(",")})`;
+  }
+  return "rgb(176,214,250)";
+}
+
+function renderGrid(levels, winner) {
+  const vals = [...levels.values()].filter(Number.isFinite);
+  const base = median(vals), top = Math.max(base + 10, ...vals);
+  let html = "";
+  for (const b of BAND_ORDER) {
+    html += `<div class="band">${b}</div>`;
+    BANDS[b].forEach((f, k) => {
+      const db = levels.get(f);
+      if (f < MIN_MHZ || f > MAX_MHZ || !Number.isFinite(db)) {
+        html += `<div class="cell off" title="${b}${k + 1} ${f} MHz: out of the receiver's range"><b>${b}${k + 1}</b><span>–</span></div>`;
+        return;
+      }
+      const x = (db - base) / (top - base), light = x > 0.62;
+      html += `<div class="cell${f === winner ? " win" : ""}" style="background:${shade(x)};color:${light ? "#0b1220" : "#e8eaee"}"
+        title="${b}${k + 1} ${f} MHz"><b>${b}${k + 1}</b><span>+${Math.max(0, db - base).toFixed(0)}</span></div>`;
+    });
+  }
+  $("grid").innerHTML = html;
+}
+
+async function check() {
+  if (busy || !link.connected) return;
+  busy = true;
+  $("btnCheck").disabled = true;
+  $("prog").hidden = false;
+  notice("");
+  const bar = $("prog").firstElementChild;
+  try {
+    const freqs = bandChannels(BAND_ORDER);
+    const extra = 15;   // the fine sweep and the level, as progress steps
+    const levels = await sweep(link, freqs, { onProgress: (d, n) => { bar.style.width = `${70 * d / n}%`; } });
+    const best = strongest(levels);
+    $("cardGrid").hidden = false;
+    renderGrid(levels, best.mhz);
+    if (best.mhz === null || best.aboveDb < 10) {
+      $("cardResult").hidden = true;
+      $("cardPower").hidden = true;
+      found = null;
+      notice("No VTX found. Is the quad powered up with its video on? Some VTXs stay in pit mode (very low power) until armed: bring it right up to the receiver, or check its settings.", true);
+      return;
+    }
+    bar.style.width = "75%";
+    const fine = await fineCentre(link, best.mhz);
+    bar.style.width = "90%";
+    const centre = Number.isFinite(fine.centre) ? fine.centre : best.mhz;
+    // The channel nearest the measured centre (the coarse winner can be a
+    // neighbour when a VTX sits between channels).
+    let nearest = best.mhz, d = Infinity;
+    for (const f of freqs) if (Math.abs(f - centre) < d) { d = Math.abs(f - centre); nearest = f; }
+    // Power is measured where the VTX actually is, not on the channel: one a
+    // few MHz off would otherwise read weaker than it is.
+    const at = Math.min(MAX_MHZ, Math.max(MIN_MHZ, Math.round(centre)));
+    found = { mhz: nearest, centre, at };
+    const off = centre - nearest;
+    $("resCh").textContent = channelName(nearest);
+    const others = BAND_ORDER.flatMap(b => BANDS[b].map((f, k) => f === nearest ? b + (k + 1) : null)).filter(Boolean);
+    $("resMhz").textContent = `${nearest} MHz` + (others.length > 1 ? ` (also ${others.slice(1).join(", ")})` : "");
+    const v = $("resFreq");
+    if (Math.abs(off) <= 3) { v.className = "verdict ok"; v.textContent = "✓ On frequency"; }
+    else if (Math.abs(off) <= 6) { v.className = "verdict warn"; v.textContent = `${off > 0 ? "+" : "−"}${Math.abs(off).toFixed(0)} MHz from the channel: probably fine`; }
+    else { v.className = "verdict bad"; v.textContent = `${off > 0 ? "+" : "−"}${Math.abs(off).toFixed(0)} MHz off the channel: check the VTX settings`; }
+    $("cardResult").hidden = false;
+    renderGrid(levels, nearest);
+    await measure(true);
+    bar.style.width = "100%";
+  } finally {
+    busy = false;
+    $("btnCheck").disabled = false;
+    $("btnCheck").textContent = "Check again";
+    setTimeout(() => { $("prog").hidden = true; bar.style.width = "0"; }, 400);
+  }
+}
+
+// The found channel's level: the median of 2 s of raw readings.
+async function measure(fromCheck) {
+  if (!found || !link.connected || (busy && !fromCheck)) return;
+  if (!fromCheck) busy = true;
+  $("btnMeasure").disabled = $("btnRef").disabled = true;
+  const vals = [];
+  let clipped = false, t0 = Infinity;
+  const onRecord = e => {
+    if (performance.now() < t0) return;
+    for (const x of e.detail.entries) {
+      if (x.mhz !== found.at) continue;
+      if (Number.isFinite(x.raw)) vals.push(x.raw);
+      if (x.flags & FLAG.CLIP) clipped = true;
+      gain = x.gain;
+    }
+  };
+  link.addEventListener("record", onRecord);
+  await link.setChannels(fill8([found.at]));
+  t0 = performance.now() + 150;
+  $("powerBody").innerHTML = `<p class="muted">Measuring… hold the quad still.</p>`;
+  $("cardPower").hidden = false;
+  await sleep(2150);
+  link.removeEventListener("record", onRecord);
+  lastLevel = { db: median(vals), gain, clipped, mhz: found.at };
+  if (!fromCheck) busy = false;
+  $("btnMeasure").disabled = $("btnRef").disabled = false;
+  renderPower();
+}
+
+function renderPower() {
+  const ref = loadRef(), L = lastLevel;
+  let html = "";
+  if (!L || !Number.isFinite(L.db)) {
+    html = `<p class="muted">No reading. Press Measure.</p>`;
+  } else if (L.clipped) {
+    html = `<div class="verdict bad">Too close</div><p>The receiver is overloaded, so the reading isn't trustworthy.
+      Move the quad further away (and use the same spot for the reference).</p>`;
+  } else if (!ref) {
+    html = `<p>Level <b>${L.db.toFixed(1)} dB</b>. To turn this into a power check, measure a quad you know is 25 mW on
+      the same spot and press <b>Use as 25 mW reference</b>.</p>`;
+  } else {
+    const delta = L.db - ref.db, mw = 25 * 10 ** (delta / 10);
+    const est = mw < 10 ? mw.toFixed(1) : mw < 100 ? mw.toFixed(0) : String(Math.round(mw / 10) * 10);
+    let cls, word;
+    if (delta <= 3) { cls = "ok"; word = delta < -6 ? "Below 25 mW (or further away than the reference)" : "OK for 25 mW racing"; }
+    else if (delta <= 6) { cls = "warn"; word = "A bit high: check the VTX power setting"; }
+    else { cls = "bad"; word = "Too high for 25 mW racing"; }
+    html = `<div class="big">${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)} dB <span class="muted" style="font:16px system-ui">vs reference</span></div>
+      <div>About <b>${est} mW</b> if the reference is 25 mW and the quad is on the same spot.</div>
+      <div class="verdict ${cls}">${word}</div>`;
+    const notes = [];
+    if (ref.gain !== null && L.gain !== null && ref.gain !== L.gain) notes.push(`The reference was measured at receiver gain ${ref.gain}, this at ${L.gain}: measure the reference again.`);
+    if (Math.abs(ref.mhz - L.mhz) > 120) notes.push(`The reference was on ${channelName(ref.mhz)} and this is on ${channelName(L.mhz)}: far-apart channels can read a dB or two differently.`);
+    notes.push(`Reference: ${ref.db.toFixed(1)} dB on ${channelName(ref.mhz)}, saved ${new Date(ref.at).toLocaleDateString()}.`);
+    html += notes.map(n => `<p class="muted">${n}</p>`).join("");
+  }
+  $("powerBody").innerHTML = html;
+  $("btnRef").disabled = !L || !Number.isFinite(L.db) || L.clipped;
+}
+
+$("btnRef").onclick = () => {
+  const L = lastLevel;
+  if (!L || !Number.isFinite(L.db) || L.clipped) return;
+  if (loadRef() && !confirm("Replace the saved 25 mW reference with this quad?")) return;
+  saveRef({ db: L.db, gain: L.gain, mhz: L.mhz, at: Date.now() });
+  renderPower();
+};
+$("btnMeasure").onclick = () => measure(false);
+$("btnCheck").onclick = check;
+$("btnConnect").onclick = () => link.connect();
+
+if (!link.kind) {
+  $("noUsb").textContent = whyNoTransport();
+  $("noUsb").hidden = false;
+  $("btnConnect").disabled = true;
+} else {
+  link.watch();
+  link.autoConnect();
+}
+</script>
+</body>
+</html>
