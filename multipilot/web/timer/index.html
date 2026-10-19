@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<!-- FPVGate lap timer: a C5MK receiver on USB, a phone or laptop, and nothing
+     else. All the timing happens in the page from the C5's readings (laps.js);
+     the C5 just scans, as it does for the dashboard. Published at
+     https://c5mk.fpvgate.xyz/timer/. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111317">
+<title>Lap Timer | FPVGate C5MK</title>
+<meta name="description" content="A simple FPV lap timer in your browser: plug in a C5MK receiver and start racing.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #111317; --panel: #191c21; --panel2: #1f232a; --line: #2a2f37; --line2: #353b45;
+    --text: #eef0f3; --soft: #bfc5ce; --muted: #8a919c; --accent: #3987e5; --accent-dim: #1d3a5c;
+    --ok: #3dbb7c; --warn: #d9a33a; --bad: #e05d5d;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  button, select, input { font: inherit; color: var(--text); }
+  button { cursor: pointer; border: 1px solid var(--line2); background: var(--panel2); border-radius: 12px; padding: 10px 16px; min-height: 48px; }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button:disabled { opacity: .45; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+  button.big { width: 100%; font-size: 19px; min-height: 60px; border-radius: 16px; }
+  button.danger { background: #3a1c1c; border-color: #6a2a2a; color: #f4c2c2; }
+  button.ghost { background: transparent; }
+  select, input[type=text] { background: var(--panel2); border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; min-height: 48px; width: 100%; }
+
+  header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top)); background: rgba(17,19,23,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  header .title { font-weight: 800; letter-spacing: .01em; }
+  header .title small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+  header .spacer { flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555c66; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(61,187,124,.18); }
+  .dot.busy { background: var(--warn); }
+  #connText { color: var(--muted); font-size: 14px; }
+
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); }
+  section.screen { display: grid; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  h1 { font-size: 28px; margin: 4px 0 6px; line-height: 1.15; }
+  h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  p { margin: 0; color: var(--soft); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .notice { border-radius: 12px; padding: 12px 14px; font-size: 15px; background: #2a2316; border: 1px solid #5a4823; color: #f1d9a3; }
+  .notice.err { background: #2c1717; border-color: #6a2a2a; color: #f4b9b9; }
+  .notice:empty { display: none; }
+  [hidden] { display: none !important; }
+  /* Nothing may push the page wider than a phone: grid and flex children
+     default to their content's width, and a select's is its longest option. */
+  main, section.screen, .card, .pilot > *, .pilot .row2 > *, .lane, .lane .top > * { min-width: 0; }
+  select { max-width: 100%; text-overflow: ellipsis; }
+  header .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #connText { white-space: nowrap; }
+  @media (max-width: 440px) {
+    header .title small { display: none; }
+    .pilot .find { padding: 8px 10px; font-size: 14px; }
+  }
+
+  .steps { list-style: none; padding: 0; margin: 14px 0 18px; display: grid; gap: 12px; }
+  .steps li { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: start; }
+  .steps .n { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-dim); color: #cfe3fb; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+
+  /* setup */
+  .pilot { display: grid; grid-template-columns: 14px 1fr; gap: 10px 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .pilot:first-of-type { border-top: 0; padding-top: 0; }
+  .pilot .sw { width: 14px; height: 14px; border-radius: 4px; }
+  .pilot .row2 { grid-column: 2; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .pilot .row3 { grid-column: 2; display: flex; align-items: center; gap: 10px; }
+  .pilot .remove { min-height: 48px; min-width: 48px; padding: 0; font-size: 22px; line-height: 1; }
+  .meter { flex: 1; height: 10px; border-radius: 5px; background: #2b3039; position: relative; overflow: visible; }
+  .meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; width: 0; }
+  .meter b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #c9ced6; border-radius: 1px; }
+  .seen { font-size: 13px; color: var(--muted); min-width: 86px; text-align: right; }
+  .seen.hit { color: var(--ok); font-weight: 700; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; background: var(--panel2); border: 1px solid var(--line2); border-radius: 12px; padding: 4px; }
+  .seg button { border: 0; background: transparent; min-height: 44px; border-radius: 9px; padding: 6px; }
+  .seg button.on { background: var(--accent); color: #fff; font-weight: 700; }
+  .stepper { display: flex; align-items: center; gap: 12px; }
+  .stepper button { width: 48px; padding: 0; font-size: 22px; }
+  .stepper output { font: 700 22px var(--mono); min-width: 36px; text-align: center; }
+  .opts { display: grid; gap: 14px; }
+  .opts label.check { display: flex; align-items: center; gap: 10px; color: var(--soft); }
+  .opts input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+
+  /* running */
+  .runbar { display: flex; align-items: center; gap: 10px; }
+  .runbar .what { font-weight: 700; }
+  .runbar .spacer { flex: 1; }
+  .lanes { display: grid; gap: 12px; }
+  .lane { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid; border-radius: 16px; padding: 14px 16px; }
+  .lane .top { display: flex; align-items: baseline; gap: 10px; }
+  .lane .name { font-weight: 800; font-size: 18px; }
+  .lane .ch { color: var(--muted); font-size: 14px; }
+  .lane .lapno { margin-left: auto; font-weight: 800; font-size: 18px; }
+  .lane .clock { font: 800 64px/1.05 var(--mono); font-variant-numeric: tabular-nums; margin: 6px 0; letter-spacing: -.02em; }
+  .lanes.n2 .clock { font-size: 52px; } .lanes.n3 .clock, .lanes.n4 .clock { font-size: 40px; }
+  .lane .stats { display: flex; gap: 18px; color: var(--soft); font-size: 15px; }
+  .lane .stats b { font-family: var(--mono); color: var(--text); }
+  .lane .best b { color: var(--ok); }
+  .lane .recent { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; min-height: 26px; }
+  .chip { font: 600 13px var(--mono); padding: 2px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line2); color: var(--soft); }
+  .chip.best { color: #bff0d6; border-color: #2a6a4b; background: #12291e; }
+  .lane .meter { margin-top: 10px; height: 6px; }
+  .lane.flash { animation: flash .6s ease-out; }
+  @keyframes flash { from { background: #23402f; } to { background: var(--panel); } }
+  .lane .done { color: var(--ok); font-weight: 800; }
+  #countdown { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(10,12,15,.88);
+    font: 900 min(40vw, 220px)/1 var(--mono); color: #fff; }
+  #countdown.go { color: var(--ok); }
+
+  /* results */
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  td, th { padding: 6px 4px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  td.num, th.num { text-align: right; font-family: var(--mono); }
+  tr.best td { color: var(--ok); }
+  .promo { background: linear-gradient(135deg, #172a42, #191c21); border-color: #24476d; }
+  .promo h2 { color: #9cc8f3; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > button { flex: 1; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 4px 16px 24px; }
+  footer a { color: var(--soft); }
+</style>
+</head>
+<body>
+<header>
+  <svg width="44" height="18" viewBox="0 0 585 240" fill="none" aria-hidden="true"><path d="M 34 137 H 94 C 123 137 128 96 157 96 C 194 96 196 204 231 204 C 264 204 284 34 317 34 C 351 34 357 183 384 183 C 409 183 413 115 439 115 C 457 115 467 137 489 137 H 551" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span class="title">Lap Timer<small>FPVGate C5MK</small></span>
+  <span class="spacer"></span>
+  <span class="dot" id="dot"></span><span id="connText">Not connected</span>
+</header>
+
+<main>
+  <div class="notice" id="notice"></div>
+
+  <!-- 1. Connect -->
+  <section class="screen" id="scrConnect">
+    <div class="card">
+      <h1>Time your laps with just a phone</h1>
+      <p>Plug a C5MK receiver into your phone or laptop, pick your quad's channel and fly. Every pass through the gate is a lap.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>Flash C5MK onto an ESP32-C5</b><div class="muted">With the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a>, and fit a 5.8 GHz antenna.</div></div></li>
+        <li><span class="n">2</span><div><b>Plug it in</b><div class="muted">Into an Android phone (USB-C) or a computer. Put it near your gate.</div></div></li>
+        <li><span class="n">3</span><div><b>Press Connect</b><div class="muted">Pick the C5 from the list. Next time it connects by itself.</div></div></li>
+      </ol>
+      <button class="primary big" id="btnConnect">Connect receiver</button>
+    </div>
+    <div class="notice err" id="noUsb" hidden></div>
+  </section>
+
+  <!-- 2. Set up -->
+  <section class="screen" id="scrSetup" hidden>
+    <div class="card">
+      <h2>Pilots</h2>
+      <div id="pilotList"></div>
+      <button class="ghost" id="btnAddPilot" style="width:100%;margin-top:8px">+ Add a pilot</button>
+      <p class="muted" style="margin-top:10px">Fly past the gate: the bar jumps and "pass seen" lights up. If it doesn't, try High sensitivity.</p>
+    </div>
+    <div class="card opts">
+      <div>
+        <h2>Mode</h2>
+        <div class="seg" id="segMode"><button data-v="practice">Practice</button><button data-v="race">Race</button></div>
+        <p class="muted" id="modeHint" style="margin-top:8px"></p>
+      </div>
+      <div id="lapsBox">
+        <h2>Laps to win</h2>
+        <div class="stepper"><button id="lapsMinus">−</button><output id="lapsOut">3</output><button id="lapsPlus">+</button></div>
+      </div>
+      <div>
+        <h2>Sensitivity</h2>
+        <div class="seg" id="segSens"><button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button></div>
+        <p class="muted" id="sensHint" style="margin-top:8px"></p>
+      </div>
+      <label class="check"><input type="checkbox" id="chkVoice">Read lap times out loud</label>
+    </div>
+    <button class="primary big" id="btnStart">Start</button>
+  </section>
+
+  <!-- 3. Running -->
+  <section class="screen" id="scrRun" hidden>
+    <div class="runbar"><span class="what" id="runWhat"></span><span class="spacer"></span><span class="muted" id="runClock"></span></div>
+    <div class="lanes" id="lanes"></div>
+    <button class="danger big" id="btnStop">Stop</button>
+  </section>
+
+  <!-- 4. Results -->
+  <section class="screen" id="scrResults" hidden>
+    <div class="card" id="resultsCard"></div>
+    <div class="row">
+      <button class="primary" id="btnAgain">Go again</button>
+      <button id="btnSetup">Change setup</button>
+    </div>
+    <button id="btnCsv">Save laps (CSV)</button>
+    <div class="card promo">
+      <h2>Ready for more?</h2>
+      <p><b>FPVGate</b> is the open-source lap timer this grew out of: LED gates, race management, up to eight pilots,
+        and RotorHazard support with the same C5MK receiver.</p>
+      <p style="margin-top:10px"><a href="https://fpvgate.xyz" target="_blank" rel="noopener">Find out more at fpvgate.xyz →</a></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <a href="../">Live signal view</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a> · runs in your browser, nothing is uploaded
+</footer>
+
+<div id="countdown" hidden></div>
+
+<script type="module">
+import { C5Link, BANDS, BAND_LABEL, MIN_MHZ, MAX_MHZ, channelName, whyNoTransport } from "../c5mk-link.js";
+import { PassDetector, Session, SENSITIVITY, formatLap } from "../laps.js";
+import { bandChannels, fill8, sweep, strongest } from "../vtxscan.js";
+
+const $ = id => document.getElementById(id);
+const COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500"];
+const MAX_PILOTS = 4;
+const STORE_KEY = "c5mk.timer";
+const DEFAULT_CHANNELS = [5658, 5732, 5843, 5917];   // R1 R3 R6 R8: the usual well-spaced set
+
+// ---- settings, remembered on this device ---------------------------------------
+const cfg = Object.assign({
+  pilots: [{ name: "Pilot 1", mhz: 5658 }],
+  mode: "practice", laps: 3, sens: "medium", voice: true, minLapS: 3,
+}, (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; } })());
+const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(cfg)); } catch (e) {} };
+
+// ---- state ------------------------------------------------------------------------
+const link = new C5Link();
+let detectors = [];                 // one per pilot
+let byMhz = new Map();              // mhz -> pilot index
+let session = null;
+let running = false;
+let chipNow = { t: null, perf: 0 }; // the C5's clock, for "now"
+let scanning = false;               // a Find my quad sweep owns the C5
+let wakeLock = null;
+const seen = [];                    // per pilot: last pass seen during setup
+const lanes = [];                   // per pilot: running-screen elements
+
+function show(id) {
+  for (const s of ["scrConnect", "scrSetup", "scrRun", "scrResults"]) $(s).hidden = s !== id;
+  window.scrollTo(0, 0);
+}
+
+function notice(text, err) {
+  $("notice").textContent = text || "";
+  $("notice").className = "notice" + (err ? " err" : "");
+}
+
+function nowChip() {
+  return chipNow.t === null ? null : chipNow.t + (performance.now() - chipNow.perf) / 1000;
+}
+
+// ---- the C5 -------------------------------------------------------------------------
+function applyChannels() {
+  byMhz = new Map(cfg.pilots.map((p, i) => [p.mhz, i]));
+  const s = SENSITIVITY[cfg.sens];
+  detectors = cfg.pilots.map(() => new PassDetector({ enterDb: s.enterDb, exitDb: s.exitDb, minLapS: cfg.minLapS }));
+  if (link.connected) {
+    link.setChannels(fill8(cfg.pilots.map(p => p.mhz)));
+    link.send("scan on");
+  }
+}
+
+link.addEventListener("state", e => {
+  const { connected, text } = e.detail;
+  $("dot").className = "dot" + (connected ? " ok" : /Connecting/.test(text) ? " busy" : "");
+  $("connText").textContent = connected ? "Connected" : /Connecting/.test(text) ? "Connecting…" : "Not connected";
+  if (connected) {
+    notice("");
+    applyChannels();
+    if (!$("scrConnect").hidden) { show("scrSetup"); renderSetup(); }
+  } else if (!/Connecting/.test(text)) {
+    if (running) notice("The receiver was unplugged. Laps resume when it's back.", true);
+    else if (!$("scrConnect").hidden) notice(/Not connected/.test(text) ? "" : text, true);
+    else notice(text, true);
+  }
+});
+
+link.addEventListener("record", e => {
+  if (scanning) return;
+  for (const x of e.detail.entries) {
+    const i = byMhz.get(x.mhz);
+    if (i === undefined) continue;
+    if (chipNow.t === null || x.t > chipNow.t) { chipNow.t = x.t; chipNow.perf = performance.now(); }
+    const pass = detectors[i].push(x.t, x.filt);
+    if (pass && !pass.rejected) onPass(i, pass);
+  }
+});
+
+// ---- setup screen ---------------------------------------------------------------------
+function channelOptions(selected, taken) {
+  let html = "";
+  for (const b of ["R", "F", "A", "B", "E", "L"]) {
+    html += `<optgroup label="${BAND_LABEL[b]}">`;
+    BANDS[b].forEach((f, k) => {
+      if (f < MIN_MHZ || f > MAX_MHZ) return;
+      const name = b + (k + 1);
+      const dis = taken.has(f) && f !== selected ? " disabled" : "";
+      html += `<option value="${f}"${f === selected && channelName(f) === name ? " selected" : ""}${dis}>${name} · ${f} MHz</option>`;
+    });
+    html += "</optgroup>";
+  }
+  return html;
+}
+
+function renderSetup() {
+  const list = $("pilotList");
+  list.innerHTML = "";
+  const taken = new Set(cfg.pilots.map(p => p.mhz));
+  cfg.pilots.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "pilot";
+    row.innerHTML = `<span class="sw" style="background:${COLORS[i]}"></span>
+      <input type="text" value="${p.name.replace(/"/g, "&quot;")}" maxlength="16" aria-label="Pilot name">
+      <div class="row2"><select aria-label="Channel">${channelOptions(p.mhz, taken)}</select>
+        <button class="find">Find my quad</button></div>
+      <div class="row3"><div class="meter"><i style="background:${COLORS[i]}"></i><b></b></div>
+        <span class="seen">no pass yet</span>
+        ${cfg.pilots.length > 1 ? '<button class="remove ghost" aria-label="Remove pilot">×</button>' : ""}</div>`;
+    row.querySelector("input").oninput = e => { p.name = e.target.value || `Pilot ${i + 1}`; save(); };
+    row.querySelector("select").onchange = e => { p.mhz = +e.target.value; save(); applyChannels(); renderSetup(); };
+    row.querySelector(".find").onclick = () => findQuad(i, row.querySelector(".find"));
+    const rm = row.querySelector(".remove");
+    if (rm) rm.onclick = () => { cfg.pilots.splice(i, 1); save(); applyChannels(); renderSetup(); };
+    list.appendChild(row);
+  });
+  $("btnAddPilot").hidden = cfg.pilots.length >= MAX_PILOTS;
+  for (const b of $("segMode").children) b.classList.toggle("on", b.dataset.v === cfg.mode);
+  for (const b of $("segSens").children) b.classList.toggle("on", b.dataset.v === cfg.sens);
+  $("modeHint").textContent = cfg.mode === "race"
+    ? "3-2-1-GO, then your first pass through the gate starts the clock. First to the lap count wins."
+    : "Your first pass through the gate starts lap 1. Fly as long as you like.";
+  $("lapsBox").hidden = cfg.mode !== "race";
+  $("lapsOut").textContent = cfg.laps;
+  $("sensHint").textContent = SENSITIVITY[cfg.sens].hint;
+  $("chkVoice").checked = cfg.voice;
+}
+
+async function findQuad(i, btn) {
+  if (scanning || !link.connected) return;
+  scanning = true;
+  const label = btn.textContent;
+  btn.disabled = true;
+  notice("Looking for your quad… keep it powered up near the receiver.");
+  try {
+    const levels = await sweep(link, bandChannels(), {
+      onProgress: (d, n) => { btn.textContent = `Looking… ${Math.round(100 * d / n)}%`; },
+    });
+    const best = strongest(levels);
+    const otherPilot = cfg.pilots.findIndex((p, k) => k !== i && p.mhz === best.mhz);
+    if (best.mhz === null || best.aboveDb < 10) {
+      notice("No quad found. Is it powered up, with its video transmitter on? Bring it closer and try again.", true);
+    } else if (otherPilot >= 0) {
+      notice(`The strongest signal is on ${channelName(best.mhz)}, but ${cfg.pilots[otherPilot].name} is already on it. Change one of the two quads' channel.`, true);
+    } else {
+      cfg.pilots[i].mhz = best.mhz;
+      save();
+      notice(`Found it: ${channelName(best.mhz)} (${best.mhz} MHz).`);
+    }
+  } finally {
+    btn.textContent = label;
+    btn.disabled = false;
+    scanning = false;
+    applyChannels();
+    renderSetup();
+  }
+}
+
+$("btnAddPilot").onclick = () => {
+  const used = new Set(cfg.pilots.map(p => p.mhz));
+  const mhz = DEFAULT_CHANNELS.find(f => !used.has(f)) ?? bandChannels().find(f => !used.has(f));
+  cfg.pilots.push({ name: `Pilot ${cfg.pilots.length + 1}`, mhz });
+  save();
+  applyChannels();
+  renderSetup();
+};
+for (const b of $("segMode").children) b.onclick = () => { cfg.mode = b.dataset.v; save(); renderSetup(); };
+for (const b of $("segSens").children) b.onclick = () => { cfg.sens = b.dataset.v; save(); applyChannels(); renderSetup(); };
+$("lapsMinus").onclick = () => { cfg.laps = Math.max(1, cfg.laps - 1); save(); renderSetup(); };
+$("lapsPlus").onclick = () => { cfg.laps = Math.min(50, cfg.laps + 1); save(); renderSetup(); };
+$("chkVoice").onchange = e => { cfg.voice = e.target.checked; save(); };
+
+// ---- sounds and voice -----------------------------------------------------------------------
+let audio = null;
+function beep(freq = 880, ms = 120, gain = 0.2) {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq;
+    g.gain.value = gain;
+    g.gain.setTargetAtTime(0, audio.currentTime + ms / 1000 * 0.7, 0.02);
+    o.connect(g).connect(audio.destination);
+    o.start();
+    o.stop(audio.currentTime + ms / 1000);
+  } catch (e) {}
+}
+function say(text) {
+  if (!cfg.voice || !("speechSynthesis" in window)) return;
+  if (speechSynthesis.pending) speechSynthesis.cancel();   // never fall behind the laps
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 1.1;
+  speechSynthesis.speak(u);
+}
+const spoken = s => s.toFixed(1);
+
+// ---- running -------------------------------------------------------------------------------
+function buildLanes() {
+  const box = $("lanes");
+  box.innerHTML = "";
+  box.className = "lanes n" + cfg.pilots.length;
+  lanes.length = 0;
+  cfg.pilots.forEach((p, i) => {
+    const el = document.createElement("div");
+    el.className = "lane";
+    el.style.borderLeftColor = COLORS[i];
+    el.innerHTML = `<div class="top"><span class="name">${escapeHtml(p.name)}</span><span class="ch">${channelName(p.mhz)}</span>
+        <span class="lapno"></span></div>
+      <div class="clock">0.00</div>
+      <div class="stats"><span>Last <b class="last">–</b></span><span class="best">Best <b>–</b></span></div>
+      <div class="recent"></div>
+      <div class="meter"><i style="background:${COLORS[i]}"></i><b></b></div>`;
+    box.appendChild(el);
+    lanes.push({ el, lapno: el.querySelector(".lapno"), clock: el.querySelector(".clock"), last: el.querySelector(".last"),
+                 best: el.querySelector(".best b"), recent: el.querySelector(".recent"), meter: el.querySelector(".meter i"),
+                 mark: el.querySelector(".meter b") });
+  });
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+
+async function start() {
+  if (!link.connected) { notice("Connect the receiver first.", true); return; }
+  beep(1, 1, 0);   // wake the audio on this tap, so later beeps play
+  session = new Session({ mode: cfg.mode, laps: cfg.laps, pilots: cfg.pilots.length });
+  detectors.forEach(d => d.newSession());
+  buildLanes();
+  $("runWhat").textContent = cfg.mode === "race" ? `Race · ${cfg.laps} lap${cfg.laps > 1 ? "s" : ""}` : "Practice";
+  show("scrRun");
+  running = true;
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch (e) {}
+  if (cfg.mode === "race") await countdown();
+  else say(cfg.pilots.length > 1 ? "Ready. Fly through the gate to start." : "Ready");
+}
+
+async function countdown() {
+  const box = $("countdown");
+  box.hidden = false;
+  for (const n of ["3", "2", "1"]) {
+    box.className = "";
+    box.textContent = n;
+    beep(660, 180);
+    await new Promise(r => setTimeout(r, 1000));
+    if (!running) { box.hidden = true; return; }
+  }
+  box.textContent = "GO";
+  box.className = "go";
+  beep(1320, 500, 0.25);
+  session.go(nowChip() ?? 0);
+  say("Go");
+  setTimeout(() => { box.hidden = true; }, 700);
+}
+
+function onPass(i, pass) {
+  if (!running) {
+    // Setup: show that the gate sees this quad, and how strongly.
+    seen[i] = { at: performance.now(), peak: pass.peakDb };
+    beep(990, 80, 0.12);
+    return;
+  }
+  const r = session.pass(i, pass.t);
+  const p = cfg.pilots[i], lane = lanes[i];
+  if (r.kind === "ignored") return;
+  const who = cfg.pilots.length > 1 ? p.name + ", " : "";
+  lane.el.classList.remove("flash");
+  void lane.el.offsetWidth;
+  lane.el.classList.add("flash");
+  navigator.vibrate?.(60);
+  if (r.kind === "start") { beep(990, 100); say(who + "go"); return; }
+  if (r.kind === "holeshot") { beep(990, 100); return; }
+  beep(r.best ? 1320 : 990, 140);
+  lane.last.textContent = formatLap(r.lapS);
+  lane.best.textContent = formatLap(session.pilots[i].best);
+  const chips = session.pilots[i].laps.slice(-6).map(s => {
+    const best = s === session.pilots[i].best;
+    return `<span class="chip${best ? " best" : ""}">${formatLap(s)}</span>`;
+  });
+  lane.recent.innerHTML = chips.join("");
+  if (r.finished) {
+    const place = session.standings().indexOf(i) + 1;
+    say(`${who}finished${cfg.pilots.length > 1 ? `, position ${place}` : ""}. ${spoken(r.totalS)} seconds`);
+    if (session.finished()) setTimeout(stop, 1500);
+  } else {
+    say(`${who}lap ${r.lap}, ${spoken(r.lapS)}${r.best && r.lap > 1 ? ", best" : ""}`);
+  }
+}
+
+function stop() {
+  if (!running) return;
+  running = false;
+  $("countdown").hidden = true;
+  try { wakeLock?.release(); } catch (e) {}
+  wakeLock = null;
+  renderResults();
+  show("scrResults");
+}
+
+// The running clocks and signal bars, ~20 times a second.
+setInterval(() => {
+  const now = nowChip();
+  if (running && session) {
+    if (cfg.mode === "race" && session.goT !== null && now !== null) {
+      // Stops at the last finisher's time.
+      const end = session.finished() ? Math.max(...session.pilots.map(p => p.finishT)) : now;
+      $("runClock").textContent = formatLap(end - session.goT);
+    }
+    else $("runClock").textContent = "";
+    cfg.pilots.forEach((p, i) => {
+      const s = session.pilots[i], lane = lanes[i];
+      if (!lane) return;
+      const lapCount = s.laps.length;
+      lane.lapno.innerHTML = s.finished ? '<span class="done">Finished</span>'
+        : s.lastT === null ? (cfg.mode === "race" && session.goT === null ? "Get ready" : "Waiting for first pass")
+        : cfg.mode === "race" ? `Lap ${Math.min(lapCount + 1, cfg.laps)}/${cfg.laps}` : `Lap ${lapCount + 1}`;
+      lane.clock.textContent = s.finished ? formatLap(s.finishT - session.goT)
+        : s.lastT === null || now === null ? "0.00" : formatLap(Math.max(0, now - s.lastT));
+      setMeter(lane.meter, lane.mark, i);
+    });
+  } else if (!$("scrSetup").hidden) {
+    const rows = $("pilotList").children;
+    cfg.pilots.forEach((p, i) => {
+      const row = rows[i];
+      if (!row) return;
+      setMeter(row.querySelector(".meter i"), row.querySelector(".meter b"), i);
+      const el = row.querySelector(".seen"), s = seen[i];
+      const fresh = s && performance.now() - s.at < 4000;
+      el.textContent = fresh ? `pass seen ✓` : s ? `last pass ${s.peak.toFixed(0)} dB` : "no pass yet";
+      el.classList.toggle("hit", !!fresh);
+    });
+  }
+}, 50);
+
+function setMeter(bar, mark, i) {
+  const d = detectors[i];
+  if (!d || !bar) return;
+  const full = 30;   // dB over the floor at the right-hand end
+  bar.style.width = `${Math.max(0, Math.min(1, d.above() / full)) * 100}%`;
+  if (mark) mark.style.left = `${Math.min(1, d.enterDb / full) * 100}%`;
+}
+
+// ---- results -------------------------------------------------------------------------------
+function renderResults() {
+  const order = cfg.mode === "race" ? session.standings() : cfg.pilots.map((_, i) => i);
+  let html = `<h2>${cfg.mode === "race" ? "Race results" : "Practice laps"}</h2>`;
+  order.forEach((i, place) => {
+    const p = cfg.pilots[i], s = session.pilots[i], laps = s.laps;
+    const avg = laps.length ? laps.reduce((a, b) => a + b, 0) / laps.length : null;
+    const head = cfg.mode === "race" ? `${place + 1}. ` : "";
+    const total = s.finished ? ` · total ${formatLap(s.finishT - session.goT)}` : "";
+    html += `<div style="margin:14px 0 4px"><b style="color:${COLORS[i]}">${head}${escapeHtml(p.name)}</b>
+      <span class="muted"> ${channelName(p.mhz)} · ${laps.length} lap${laps.length === 1 ? "" : "s"}${total}</span></div>`;
+    if (!laps.length) { html += `<p class="muted">No laps.</p>`; return; }
+    html += `<p class="muted">Best <b style="color:var(--ok)">${formatLap(s.best)}</b> · average ${formatLap(avg)}</p>
+      <table><tr><th>Lap</th><th class="num">Time</th></tr>` +
+      laps.map((t, k) => `<tr class="${t === s.best ? "best" : ""}"><td>${k + 1}</td><td class="num">${formatLap(t)}</td></tr>`).join("") +
+      `</table>`;
+  });
+  $("resultsCard").innerHTML = html;
+}
+
+function saveCsv() {
+  const rows = ["pilot,channel,mhz,lap,lap_s"];
+  cfg.pilots.forEach((p, i) => session.pilots[i].laps.forEach((t, k) =>
+    rows.push(`"${p.name.replace(/"/g, '""')}",${channelName(p.mhz)},${p.mhz},${k + 1},${t.toFixed(3)}`)));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([rows.join("\n") + "\n"], { type: "text/csv" }));
+  a.download = `laps-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.csv`;
+  a.click();
+}
+
+// ---- wiring ---------------------------------------------------------------------------------
+$("btnConnect").onclick = () => link.connect();
+$("btnStart").onclick = start;
+$("btnStop").onclick = stop;
+$("btnAgain").onclick = start;
+$("btnSetup").onclick = () => { show("scrSetup"); renderSetup(); };
+$("btnCsv").onclick = saveCsv;
+link.addEventListener("text", e => {
+  const m = /firmware (\S+)/.exec(e.detail);
+  if (m && /^1\.(0|1|2\.[0-2])\b/.test(m[1])) {
+    notice(`This receiver runs C5MK ${m[1].split("+")[0]}. It works, but 1.2.3 or later gives smoother timing: update it with the C5 flasher.`);
+  }
+});
+
+if (!link.kind) {
+  $("noUsb").textContent = whyNoTransport();
+  $("noUsb").hidden = false;
+  $("btnConnect").disabled = true;
+} else {
+  link.watch();
+  link.autoConnect();
+}
+if (link.kind === "usb") {
+  $("connText").textContent = "Not connected (USB beta)";
+}
+</script>
+</body>
+</html>

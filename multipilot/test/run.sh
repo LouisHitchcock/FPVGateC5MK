@@ -16,3 +16,5 @@ g++ $FLAGS -I test/stubs src/link.cpp src/frame.cpp src/rh_usb.cpp test/test_lin
 ./.pio/test/test_host.exe
 ./.pio/test/test_rh_usb.exe
 ./.pio/test/test_link.exe
+# The browser lap timer's pass detection (web/laps.js), if Node is installed.
+if command -v node >/dev/null 2>&1; then node test/test_laps.mjs; else echo "test_laps: node not found, skipped"; fi
