@@ -124,6 +124,17 @@
   table.ir th { color: var(--muted); font-weight: normal; font-family: inherit; }
   .dim { color: var(--muted); }
   body:not(.advanced) .adv { display: none !important; }
+  /* The VTX check: finding, result and power on the left, the channel grid on
+     the right, when there's room. */
+  @media (min-width: 1000px) {
+    #vtxMount.vx { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start;
+      grid-template-areas: "find grid" "notice grid" "result grid" "power grid" ". grid"; }
+    #vtxMount [data-k="find"] { grid-area: find; }
+    #vtxMount [data-k="notice"] { grid-area: notice; }
+    #vtxMount [data-k="result"] { grid-area: result; }
+    #vtxMount [data-k="gridbox"] { grid-area: grid; }
+    #vtxMount [data-k="power"] { grid-area: power; }
+  }
   [hidden] { display: none !important; }
 
   /* Channel editor */
@@ -154,7 +165,7 @@
   <div class="spacer"></div>
   <label class="switch" title="Scanner settings, console and raw captures"><input type="checkbox" id="advToggle">Advanced</label>
   <a class="btn-link" href="timer/" title="A simple lap timer for 1-4 pilots, for phones and laptops">Lap timer</a>
-  <a class="btn-link" href="vtx/" title="Which channel a quad's VTX is on, and its power against a 25 mW reference">VTX check</a>
+  <button id="btnVtx" title="Which channel a quad's VTX is on, and its power against a 25 mW reference">VTX check</button>
   <a class="btn-link" href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash firmware</a>
   <button id="btnConnect" class="primary">Connect</button>
   <button id="btnDisconnect" hidden>Disconnect</button>
@@ -215,6 +226,15 @@
         <span class="stat" id="stCrc">CRC errors<b>0</b></span>
         <span class="stat" id="stDrops">dropped on C5<b>0</b></span>
       </div>
+    </section>
+
+    <section class="panel" id="vtxSection" hidden>
+      <div class="ph">
+        <h2>VTX check</h2><span class="sub" id="vtxSub">which channel a quad is on, and its power</span>
+        <div class="tools"><a class="btn-link" href="vtx/" title="The same check on its own page, for phones">Open on its own</a>
+          <button id="btnVtxClose">Close</button></div>
+      </div>
+      <div id="vtxMount"></div>
     </section>
 
     <section class="panel">
@@ -561,6 +581,48 @@ function ensurePilots(list) {
   $("inPilots").value = list.join(",");
 }
 
+// ---- VTX check -----------------------------------------------------------------
+// The panel (vtxpanel.js, shared with the vtx/ page) is loaded on first use.
+// While it retunes the C5, records go to it and the charts pause; afterwards
+// the channel list goes back, and records are ignored until they match it again
+// (late ones from the check would otherwise read as a channel change and clear
+// the history).
+const vtxLink = new EventTarget();
+Object.defineProperty(vtxLink, "connected", { get: () => !!port });
+vtxLink.send = line => send(line);
+vtxLink.setChannels = list => send("pilots " + list.join(","));
+let vtxActive = false, vtxRestore = null, vtxRestoreUntil = 0;
+vtxLink.beginCheck = () => {
+  vtxActive = true;
+  vtxRestore = pilots.map(p => p.mhz);
+  $("vtxSub").textContent = "checking: the charts pause until it's done";
+};
+vtxLink.endCheck = () => {
+  vtxActive = false;
+  $("vtxSub").textContent = "which channel a quad is on, and its power";
+  if (vtxRestore && vtxRestore.length) {
+    vtxRestoreUntil = performance.now() + 2000;
+    send("pilots " + vtxRestore.join(","));
+  } else vtxRestore = null;
+};
+let vtxMounted = false;
+async function openVtx() {
+  if (!port) { notice("Connect the receiver first, then open the VTX check.", "err"); return; }
+  showLive();
+  $("vtxSection").hidden = false;
+  $("vtxSection").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (vtxMounted) return;
+  try {
+    const m = await import("./vtxpanel.js");
+    m.mountVtxCheck($("vtxMount"), vtxLink);
+    vtxMounted = true;
+  } catch (e) {
+    $("vtxMount").innerHTML = `<p class="dim">The VTX check couldn't load (${e.message}). Browsers don't load it from a file on
+      disk: use <a href="https://c5mk.fpvgate.xyz/">c5mk.fpvgate.xyz</a>, or serve this folder (for example
+      <code>python -m http.server</code>).</p>`;
+  }
+}
+
 function onRecord(dv) {
   const seq = dv.getUint16(0, true), count = dv.getUint8(2), hflags = dv.getUint8(3);
   const drops = dv.getUint32(4, true);
@@ -588,9 +650,22 @@ function onRecord(dv) {
                 mhz: dv.getUint16(o + 8, true), gain: dv.getUint8(o + 10), clips: dv.getUint8(o + 11),
                 flags: dv.getUint8(o + 12) });
   }
+  if (vtxActive) {
+    const entries = recs.map(r => ({ t: chipSeconds(r.t), raw: r.flags & FLAG.FAIL ? NaN : r.raw / 100, filt: r.filt / 100,
+                                     mhz: r.mhz, gain: r.gain, clips: r.clips, flags: r.flags }));
+    vtxLink.dispatchEvent(new CustomEvent("record", { detail: { seq, cycleUs: lastCycleUs, entries } }));
+    return;
+  }
+  let resumed = false;
+  if (vtxRestore) {
+    const back = recs.length === vtxRestore.length && recs.every((r, k) => r.mhz === vtxRestore[k]);
+    if (!back && performance.now() < vtxRestoreUntil) return;
+    vtxRestore = null;
+    resumed = true;
+  }
   ensurePilots(recs.map(r => r.mhz));
   showLive();
-  if (hflags & 1) pilots.forEach(p => { p.t.length = p.raw.length = p.filt.length = p.flags.length = 0; p.s = newSummary(); });
+  if ((hflags & 1) && !resumed) pilots.forEach(p => { p.t.length = p.raw.length = p.filt.length = p.flags.length = 0; p.s = newSummary(); });
   setMode(hflags & 2 ? "node" : "scan");
   recs.forEach((r, k) => {
     const p = pilots[k];
@@ -1403,6 +1478,8 @@ $("btnConnect").onclick = connect;
 $("btnConnect2").onclick = connect;
 $("btnDisconnect").onclick = () => { userDisconnected = true; disconnect(false); };
 $("btnLog").onclick = downloadLog;
+$("btnVtx").onclick = openVtx;
+$("btnVtxClose").onclick = () => { $("vtxSection").hidden = true; };
 $("btnScan").onclick = () => send(scanning ? "scan off" : "scan on");
 $("btnPause").onclick = () => {
   if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
