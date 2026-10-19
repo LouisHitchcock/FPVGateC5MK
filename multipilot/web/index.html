@@ -200,6 +200,7 @@
           <button id="btnEdit" class="needs" title="Choose which channels the C5 scans">Edit channels</button>
           <button id="btnAll" title="Show every channel on the charts">All</button>
           <button id="btnNone" title="Hide every channel from the charts">None</button>
+          <button id="btnLog" title="Save this session's log: connection events, commands and replies, and the link's health every second">Download log</button>
         </div>
       </div>
       <div class="cards" id="cards"></div>
@@ -370,6 +371,66 @@ function notice(text, kind) {
   const n = $("notice");
   n.textContent = text || "";
   n.className = "notice" + (kind === "err" ? " err" : "");
+  if (text) slog("note", text);
+}
+
+// ---- session log ------------------------------------------------------------------
+// What's needed to explain a problem afterwards: connects and disconnects,
+// commands and the C5's replies, and once a second the link's health (records
+// received and lost, where the losses happened, and how long the page spent
+// drawing). "Download log" saves it as a text file.
+const PAGE_VERSION = "2026-10-19";
+const SESSION_LOG_MAX = 60000;
+const sessionLog = [];
+const recentC5 = [];
+function slog(kind, text) {
+  const t = new Date().toISOString();
+  for (const line of String(text).replace(/\n$/, "").split("\n")) sessionLog.push(`${t} ${kind.padEnd(6)} ${line}`);
+  if (sessionLog.length > SESSION_LOG_MAX) sessionLog.splice(0, sessionLog.length - SESSION_LOG_MAX);
+}
+
+// Per-second counters, filled by feed(), onRecord() and frame().
+const health = { bytes: 0, rec: 0, maxRun: 0, renderMax: 0, lost0: 0, drops0: null, crc0: 0, tick: 0 };
+setInterval(() => {
+  const now = performance.now(), lag = health.tick ? Math.max(0, now - health.tick - 1000) : 0;
+  health.tick = now;
+  if (!port) return;
+  const lost = link.lost - health.lost0, drops = health.drops0 === null ? 0 : link.drops - health.drops0;
+  let gap = 0;
+  pilots.forEach(p => { const st = windowStats(p, 1); if (st) gap = Math.max(gap, st.gapMs); });
+  slog("health", `rx ${health.rec} rec/s ${(health.bytes / 1024).toFixed(1)} KB/s | lost +${lost} (longest run ${health.maxRun})` +
+    ` c5-drops +${drops} page-side +${Math.max(0, lost - drops)} | crc +${link.crc - health.crc0}` +
+    ` | cycle ${(lastCycleUs / 1000).toFixed(2)} ms gap ${gap.toFixed(1)} ms | draw ${health.renderMax.toFixed(1)} ms lag ${lag.toFixed(0)} ms` +
+    ` | totals lost ${link.lost} c5-drops ${link.drops} crc ${link.crc}`);
+  Object.assign(health, { bytes: 0, rec: 0, maxRun: 0, renderMax: 0, lost0: link.lost, drops0: link.drops, crc0: link.crc });
+}, 1000);
+
+function downloadLog() {
+  const info = port ? port.getInfo() : null;
+  const head = [
+    "C5MK live dashboard session log",
+    `saved    ${new Date().toISOString()}`,
+    `page     ${PAGE_VERSION} ${location.href}`,
+    `browser  ${navigator.userAgent}`,
+    `port     ${info ? `connected, USB ${(info.usbVendorId || 0).toString(16)}:${(info.usbProductId || 0).toString(16)}` : "not connected"}`,
+    `channels ${pilots.map(p => `${p.name} ${p.mhz}`).join(", ") || "none yet"}`,
+    `totals   records lost ${link.lost}, dropped on C5 ${link.drops}, CRC errors ${link.crc}`,
+    "",
+    "health lines, once a second: rx = records received; lost = gaps in the record sequence;",
+    "c5-drops = records the C5 couldn't send because its USB buffer was full (the page wasn't",
+    "reading fast enough); page-side = lost but not counted by the C5; draw = slowest frame;",
+    "lag = how late the page's one-second timer ran (the page was busy).",
+    "",
+    "Last lines from the C5:",
+    ...recentC5.map(l => "  " + l),
+    "",
+    "---- log ----",
+  ];
+  const blob = new Blob([head.join("\n") + "\n" + sessionLog.join("\n") + "\n"], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `c5mk-log-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.txt`;
+  a.click();
 }
 
 // ---- framing ----------------------------------------------------------------
@@ -386,6 +447,7 @@ let rxBuf = new Uint8Array(0);
 const link = { crc: 0, lost: 0, drops: 0, lastSeq: -1 };
 
 function feed(chunk) {
+  health.bytes += chunk.length;
   const b = new Uint8Array(rxBuf.length + chunk.length);
   b.set(rxBuf);
   b.set(chunk, rxBuf.length);
@@ -416,6 +478,9 @@ function onFrame(type, p) {
 let lastGainMax = null;
 function onText(text) {
   log(text);
+  slog("c5", text);
+  for (const l of text.replace(/\n$/, "").split("\n")) recentC5.push(l);
+  if (recentC5.length > 60) recentC5.splice(0, recentC5.length - 60);
   const g = /gain (\d+) \(max (\d+)\)/.exec(text);
   if (g) { $("inGain").value = g[1]; lastGainMax = +g[2]; }
   const s = /scan (on|off)/.exec(text);
@@ -457,8 +522,14 @@ function onRecord(dv) {
   const seq = dv.getUint16(0, true), count = dv.getUint8(2), hflags = dv.getUint8(3);
   link.drops = dv.getUint32(4, true);
   lastCycleUs = dv.getUint32(8, true);
-  if (link.lastSeq >= 0) link.lost += ((seq - link.lastSeq) & 0xFFFF) - 1;
+  if (link.lastSeq >= 0) {
+    const run = ((seq - link.lastSeq) & 0xFFFF) - 1;
+    // A huge jump is the sequence starting again (the C5 restarted), not a loss.
+    if (run > 32768) slog("note", `record sequence restarted at ${seq} (the C5 restarted?)`);
+    else if (run > 0) { link.lost += run; health.maxRun = Math.max(health.maxRun, run); }
+  }
   link.lastSeq = seq;
+  health.rec++;
   const recs = [];
   for (let k = 0; k < count; k++) {
     const o = 12 + 14 * k;
@@ -602,7 +673,7 @@ function renderCards() {
     $(`cBar${k}`).style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
     $(`cRate${k}`).textContent = s.rate.toFixed(0);
     if (p.floor === null) {
-      const w = windowStats(p, +$("selWindow").value);
+      const w = windowStats(p, 10);   // the sparkline's span; scanning the whole chart window per card cost ~40 ms at 1 kHz
       $(`cRiseK${k}`).textContent = "min / max";
       $(`cRise${k}`).textContent = `${w.mn.toFixed(0)} / ${w.mx.toFixed(0)}`;
     } else {
@@ -725,14 +796,30 @@ function renderChart() {
       ctx.strokeStyle = COLORS[k % COLORS.length];
       ctx.globalAlpha = alpha;
       ctx.lineWidth = lw;
+      // One column per pixel: its first, lowest, highest and last reading.
+      // The same picture as drawing every reading, peaks included, at a cost
+      // that doesn't grow with the window (60 s is ~500,000 readings).
       ctx.beginPath();
-      let pen = false;
-      for (let i = Math.max(0, lowerBound(p.t, v.t0) - 1); i < p.t.length && p.t[i] <= v.tEnd; i++) {
-        if (isNaN(a[i])) { pen = false; continue; }
-        const x = box.X(p.t[i]), y = box.Y(a[i]);
-        pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      let pen = false, col = null, have = false, first = 0, mn = 0, mx = 0, last = 0;
+      const flush = () => {
+        if (!have) return;
+        const x = box.l + col + 0.5;
+        pen ? ctx.lineTo(x, box.Y(first)) : ctx.moveTo(x, box.Y(first));
+        if (mx !== mn) { ctx.lineTo(x, box.Y(mn)); ctx.lineTo(x, box.Y(mx)); }
+        ctx.lineTo(x, box.Y(last));
         pen = true;
+        have = false;
+      };
+      for (let i = Math.max(0, lowerBound(p.t, v.t0) - 1); i < p.t.length && p.t[i] <= v.tEnd; i++) {
+        const val = a[i];
+        if (isNaN(val)) { flush(); pen = false; continue; }
+        const c = Math.floor(box.X(p.t[i]) - box.l);
+        if (c !== col) { flush(); col = c; }
+        if (!have) { first = mn = mx = val; have = true; }
+        else { if (val < mn) mn = val; if (val > mx) mx = val; }
+        last = val;
       }
+      flush();
       ctx.stroke();
     }
   });
@@ -1101,6 +1188,10 @@ function drawEditor() {
 
 // ---- serial --------------------------------------------------------------------
 let port = null, reader = null, writer = null, scanning = true, connecting = false;
+// Set by the Disconnect button: the page then leaves the board alone (no
+// reconnecting when it's replugged or reset, e.g. while it's being flashed)
+// until Connect is pressed or the page is reloaded.
+let userDisconnected = false;
 
 async function openPort(p, quiet) {
   if (port || connecting) return;
@@ -1113,6 +1204,7 @@ async function openPort(p, quiet) {
   } catch (e) {
     connecting = false;
     setConnected(false);
+    slog("error", `open failed: ${e.message}`);
     if (!quiet) {
       const busy = /open|in use|access/i.test(e.message);
       notice(busy ? "The receiver's port is in use. Close RotorHazard, serial monitors and other tabs using it, then press Connect."
@@ -1124,6 +1216,9 @@ async function openPort(p, quiet) {
   connecting = false;
   writer = port.writable.getWriter();
   Object.assign(link, { crc: 0, lost: 0, drops: 0, lastSeq: -1 });
+  Object.assign(health, { lost0: 0, drops0: null, crc0: 0 });
+  const info = p.getInfo();
+  slog("conn", `connected (USB ${(info.usbVendorId || 0).toString(16)}:${(info.usbProductId || 0).toString(16)}${quiet ? ", automatic" : ""})`);
   notice("");
   setConnected(true);
   readLoop();
@@ -1137,6 +1232,7 @@ async function openPort(p, quiet) {
 
 async function connect() {
   if (!("serial" in navigator)) { notice(serialProblem(), "err"); return; }
+  userDisconnected = false;
   let p;
   try {
     p = await navigator.serial.requestPort({ filters: ESPRESSIF_USB });
@@ -1156,6 +1252,7 @@ async function readLoop() {
     }
   } catch (e) {
     log(`Link error: ${e.message}\n`, "err");
+    slog("error", `link error: ${e.message}`);
   } finally {
     reader.releaseLock();
     reader = null;
@@ -1170,12 +1267,14 @@ async function disconnect(lost) {
   try { if (writer) { writer.releaseLock(); writer = null; } } catch (e) {}
   try { if (p) await p.close(); } catch (e) {}
   setConnected(false);
+  slog("conn", lost ? "disconnected (board unplugged or reset)" : "disconnected (Disconnect pressed)");
   if (lost) notice("The receiver was disconnected. Plug it back in and the page reconnects.");
 }
 
 async function send(line) {
   if (!writer) return;
   log("> " + line + "\n", "me");
+  slog("send", line);
   await writer.write(new TextEncoder().encode(line.trim() + "\n"));
 }
 
@@ -1209,7 +1308,8 @@ function showLive() {
 // ---- controls ------------------------------------------------------------------
 $("btnConnect").onclick = connect;
 $("btnConnect2").onclick = connect;
-$("btnDisconnect").onclick = () => disconnect(false);
+$("btnDisconnect").onclick = () => { userDisconnected = true; disconnect(false); };
+$("btnLog").onclick = downloadLog;
 $("btnScan").onclick = () => send(scanning ? "scan off" : "scan on");
 $("btnPause").onclick = () => {
   if (frozenEnd === null) { frozenEnd = chartView().tEnd; $("btnPause").textContent = "Resume"; $("btnPause").classList.add("on"); }
@@ -1298,17 +1398,20 @@ if (!("serial" in navigator)) {
     const p = ports.find(q => { const i = q.getInfo(); return i.usbVendorId === 0x303A; });
     if (p) openPort(p, true);
   });
-  navigator.serial.addEventListener("connect", e => { if (!port) openPort(e.target, true); });
+  navigator.serial.addEventListener("connect", e => { if (!port && !userDisconnected) openPort(e.target, true); });
   navigator.serial.addEventListener("disconnect", e => { if (port && e.target === port) disconnect(true); });
 }
 
 let lastCards = 0, lastWaterfall = 0;
 function frame(ts) {
+  const t0 = performance.now();
   if (!$("live").hidden) {
     renderChart();
+    // Never both in one frame: each costs ~15-40 ms at 1000 readings/s.
     if (ts - lastWaterfall > 100) { renderWaterfall(); lastWaterfall = ts; }
-    if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
+    else if (ts - lastCards > 200) { renderCards(); lastCards = ts; }
   }
+  health.renderMax = Math.max(health.renderMax, performance.now() - t0);
   requestAnimationFrame(frame);
 }
 window.addEventListener("resize", renderSpectrum);
