@@ -333,6 +333,40 @@ const BAND_LABEL = { R: "Raceband", A: "Boscam A", B: "Boscam B", E: "Boscam E",
 const MIN_MHZ = 5180, MAX_MHZ = 5917, MAX_PILOTS = 8;   // what the C5's PLL reaches (README)
 const FLAG = { FAIL: 1, GAIN: 2, CLIP: 4, FALLBACK: 8 };
 const HISTORY_S = 65;
+// Every reading also goes into a 5 ms summary per channel (first, lowest,
+// highest and last value). Charts wider than ~5 ms per pixel draw from it, so
+// their cost doesn't grow with the reading rate: at ~1000 readings per pilot
+// per second a 60 s window is ~500,000 readings but ~100,000 summary entries.
+const BUCKET_S = 0.005;
+const GAP_S = 0.1;   // a longer silence breaks the line
+
+function newSummary() {
+  return { last: null, t: [], fFirst: [], fLast: [], fMin: [], fMax: [], rMin: [], rMax: [] };
+}
+
+function summaryAdd(s, t, raw, filt) {
+  const b = Math.floor(t / BUCKET_S);
+  if (b !== s.last) {
+    s.last = b;
+    s.t.push(b * BUCKET_S);
+    s.fFirst.push(filt); s.fLast.push(filt); s.fMin.push(filt); s.fMax.push(filt);
+    s.rMin.push(raw); s.rMax.push(raw);
+    return;
+  }
+  const j = s.t.length - 1;
+  s.fLast[j] = filt;
+  if (filt < s.fMin[j]) s.fMin[j] = filt;
+  if (filt > s.fMax[j]) s.fMax[j] = filt;
+  if (!isNaN(raw)) {
+    if (!(s.rMin[j] <= raw)) s.rMin[j] = raw;
+    if (!(s.rMax[j] >= raw)) s.rMax[j] = raw;
+  }
+}
+
+function summaryTrim(s, tCut) {
+  const n = lowerBound(s.t, tCut);
+  if (n) for (const k of ["t", "fFirst", "fLast", "fMin", "fMax", "rMin", "rMax"]) s[k].splice(0, n);
+}
 const ESPRESSIF_USB = [{ usbVendorId: 0x303A, usbProductId: 0x1001 }];
 const $ = id => document.getElementById(id);
 
@@ -520,7 +554,7 @@ function ensurePilots(list) {
   if (same) return;
   const hiddenBefore = new Set(pilots.filter(p => p.hidden).map(p => p.mhz));
   pilots = list.map(m => ({ mhz: m, name: channelName(m), hidden: hiddenBefore.has(m), t: [], raw: [], filt: [],
-                             flags: [], floor: null, lastFlags: 0, clips: 0 }));
+                             flags: [], floor: null, lastFlags: 0, clips: 0, s: newSummary() }));
   buildCards();
   $("inPilots").value = list.join(",");
 }
@@ -554,7 +588,7 @@ function onRecord(dv) {
   }
   ensurePilots(recs.map(r => r.mhz));
   showLive();
-  if (hflags & 1) pilots.forEach(p => { p.t.length = p.raw.length = p.filt.length = p.flags.length = 0; });
+  if (hflags & 1) pilots.forEach(p => { p.t.length = p.raw.length = p.filt.length = p.flags.length = 0; p.s = newSummary(); });
   setMode(hflags & 2 ? "node" : "scan");
   recs.forEach((r, k) => {
     const p = pilots[k];
@@ -563,10 +597,12 @@ function onRecord(dv) {
     // In node mode a record repeats each frequency's latest reading until
     // the host comes back to it: keep only new readings.
     if (p.t.length && t === p.t[p.t.length - 1]) return;
+    const raw = failed ? NaN : r.raw / 100, filt = r.filt / 100;
     p.t.push(t);
-    p.raw.push(failed ? NaN : r.raw / 100);
-    p.filt.push(r.filt / 100);
+    p.raw.push(raw);
+    p.filt.push(filt);
     p.flags.push(r.flags);
+    summaryAdd(p.s, t, raw, filt);
     p.lastFlags = r.flags;
     p.clips += r.clips;
     lastGain = r.gain;
@@ -574,6 +610,7 @@ function onRecord(dv) {
     if (p.t[0] < tCut - 5) {
       const n = lowerBound(p.t, tCut);
       p.t.splice(0, n); p.raw.splice(0, n); p.filt.splice(0, n); p.flags.splice(0, n);
+      summaryTrim(p.s, tCut);
     }
   });
   if (recording) {
@@ -650,19 +687,20 @@ function drawSpark(p, k) {
   if (!cv) return;
   const { ctx, W, H } = fitCanvas(cv);
   ctx.clearRect(0, 0, W, H);
-  const n = p.t.length;
+  // From the 5 ms summary: the last 10 s, one point per pixel column (the
+  // highest), so a short pass still shows.
+  const s = p.s, n = s.t.length;
   if (n < 2) return;
-  const tEnd = p.t[n - 1], t0 = tEnd - 10;
-  const j = lowerBound(p.t, t0);
+  const tEnd = s.t[n - 1] + BUCKET_S, t0 = tEnd - 10;
+  const j = lowerBound(s.t, t0);
   let lo = Infinity, hi = -Infinity;
-  for (let i = j; i < n; i++) { const v = p.filt[i]; if (!isNaN(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+  for (let i = j; i < n; i++) { lo = Math.min(lo, s.fMin[i]); hi = Math.max(hi, s.fMax[i]); }
   if (!isFinite(lo)) return;
   if (hi - lo < 6) { const m = (hi + lo) / 2; lo = m - 3; hi = m + 3; }
-  // One point per pixel column (the highest), so a short pass still shows.
   const cols = Math.max(2, Math.floor(W)), top = new Float32Array(cols).fill(NaN);
   for (let i = j; i < n; i++) {
-    const c = Math.min(cols - 1, Math.floor((p.t[i] - t0) / 10 * cols)), v = p.filt[i];
-    if (!isNaN(v) && !(top[c] >= v)) top[c] = v;
+    const c = Math.min(cols - 1, Math.floor((s.t[i] - t0) / 10 * cols)), v = s.fMax[i];
+    if (!(top[c] >= v)) top[c] = v;
   }
   ctx.strokeStyle = COLORS[k % COLORS.length];
   ctx.lineWidth = 1.5;
@@ -688,7 +726,10 @@ function renderCards() {
     $(`cBar${k}`).style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
     $(`cRate${k}`).textContent = s.rate.toFixed(0);
     if (p.floor === null) {
-      const w = windowStats(p, 10);   // the sparkline's span; scanning the whole chart window per card cost ~40 ms at 1 kHz
+      // Over the sparkline's 10 s, from the summary.
+      const sm = p.s, j0 = lowerBound(sm.t, sm.t[sm.t.length - 1] - 10);
+      const w = { mn: Infinity, mx: -Infinity };
+      for (let i = j0; i < sm.t.length; i++) { w.mn = Math.min(w.mn, sm.fMin[i]); w.mx = Math.max(w.mx, sm.fMax[i]); }
       $(`cRiseK${k}`).textContent = "min / max";
       $(`cRise${k}`).textContent = `${w.mn.toFixed(0)} / ${w.mx.toFixed(0)}`;
     } else {
@@ -780,15 +821,17 @@ function renderChart() {
   ctx.clearRect(0, 0, W, H);
   const v = chartView();
   if (!isFinite(v.tEnd)) { emptyMessage(ctx, W, H, "Waiting for readings…"); return; }
+  const useSummary = v.span / Math.max(1, W - 124) >= BUCKET_S;
   let y0 = BAR_LO, y1 = BAR_HI;
   if ($("selY").value === "auto") {
     y0 = Infinity; y1 = -Infinity;
     pilots.forEach(p => {
       if (p.hidden) return;
-      for (let i = lowerBound(p.t, v.t0); i < p.t.length; i++) {
-        for (const a of v.mode === "filt" ? [p.filt] : v.mode === "raw" ? [p.raw] : [p.raw, p.filt]) {
-          const x = a[i];
-          if (!isNaN(x)) { y0 = Math.min(y0, x); y1 = Math.max(y1, x); }
+      const s = p.s;
+      for (let j = lowerBound(s.t, v.t0 - BUCKET_S); j < s.t.length; j++) {
+        for (const [lo, hi] of v.mode === "filt" ? [[s.fMin, s.fMax]] : v.mode === "raw" ? [[s.rMin, s.rMax]]
+                                                     : [[s.rMin, s.rMax], [s.fMin, s.fMax]]) {
+          if (!isNaN(lo[j])) { y0 = Math.min(y0, lo[j]); y1 = Math.max(y1, hi[j]); }
         }
       }
     });
@@ -805,12 +848,13 @@ function renderChart() {
   ctx.lineJoin = "round";
   pilots.forEach((p, k) => {
     if (p.hidden) return;
-    const series = v.mode === "filt" ? [[p.filt, 2, 1]] : v.mode === "raw" ? [[p.raw, 1.2, 1]]
-                                                         : [[p.raw, 1, 0.35], [p.filt, 2, 1]];
-    for (const [a, lw, alpha] of series) {
+    const series = v.mode === "filt" ? [[p.filt, 2, 1, false]] : v.mode === "raw" ? [[p.raw, 1.2, 1, true]]
+                                                         : [[p.raw, 1, 0.35, true], [p.filt, 2, 1, false]];
+    for (const [a, lw, alpha, isRaw] of series) {
       ctx.strokeStyle = COLORS[k % COLORS.length];
       ctx.globalAlpha = alpha;
       ctx.lineWidth = lw;
+      if (useSummary) { strokeSummary(ctx, box, v, p.s, isRaw); continue; }
       // One column per pixel: its first, lowest, highest and last reading.
       // The same picture as drawing every reading, peaks included, at a cost
       // that doesn't grow with the window (60 s is ~500,000 readings).
@@ -843,6 +887,36 @@ function renderChart() {
   drawLiveLabels(ctx, box, v);
   if (hoverX !== null) drawHover(box, v);
   else $("tip").style.display = "none";
+}
+
+// One series from the 5 ms summary: per pixel column its first, lowest,
+// highest and last value, as the per-reading path draws it.
+function strokeSummary(ctx, box, v, s, raw) {
+  const T = s.t, mnA = raw ? s.rMin : s.fMin, mxA = raw ? s.rMax : s.fMax;
+  const fA = raw ? s.rMin : s.fFirst, lA = raw ? s.rMax : s.fLast;
+  ctx.beginPath();
+  let pen = false, col = null, have = false, first = 0, mn = 0, mx = 0, last = 0, prevT = -Infinity;
+  const flush = () => {
+    if (!have) return;
+    const x = box.l + col + 0.5;
+    pen ? ctx.lineTo(x, box.Y(first)) : ctx.moveTo(x, box.Y(first));
+    if (mx !== mn) { ctx.lineTo(x, box.Y(mn)); ctx.lineTo(x, box.Y(mx)); }
+    ctx.lineTo(x, box.Y(last));
+    pen = true;
+    have = false;
+  };
+  for (let j = lowerBound(T, v.t0 - BUCKET_S); j < T.length && T[j] <= v.tEnd; j++) {
+    if (isNaN(mnA[j]) || T[j] - prevT > GAP_S) { flush(); pen = false; }
+    prevT = T[j];
+    if (isNaN(mnA[j])) continue;
+    const c = Math.floor(box.X(T[j] + BUCKET_S / 2) - box.l);
+    if (c !== col) { flush(); col = c; }
+    if (!have) { first = fA[j]; mn = mnA[j]; mx = mxA[j]; have = true; }
+    else { if (mnA[j] < mn) mn = mnA[j]; if (mxA[j] > mx) mx = mxA[j]; }
+    last = lA[j];
+  }
+  flush();
+  ctx.stroke();
 }
 
 // A label at the right end of each visible line: channel name and its latest
@@ -942,9 +1016,9 @@ function renderWaterfall() {
   const rows = Math.max(1, Math.round(box.b - box.t)), slice = v.span / rows;
   const db = new Float32Array(rows * n).fill(NaN);
   pilots.forEach((p, k) => {
-    const a = v.mode === "filt" ? p.filt : p.raw;
-    for (let i = lowerBound(p.t, v.t0); i < p.t.length && p.t[i] <= v.tEnd; i++) {
-      const r = Math.floor((v.tEnd - p.t[i]) / slice), j = r * n + k;
+    const s = p.s, a = v.mode === "filt" ? s.fMax : s.rMax;
+    for (let i = lowerBound(s.t, v.t0); i < s.t.length && s.t[i] <= v.tEnd; i++) {
+      const r = Math.floor((v.tEnd - s.t[i]) / slice), j = r * n + k;
       if (r < 0 || r >= rows || isNaN(a[i])) continue;
       if (!(db[j] >= a[i])) db[j] = a[i];
     }
