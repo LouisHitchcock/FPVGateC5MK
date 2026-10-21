@@ -105,7 +105,7 @@ void Core::latchStats(uint32_t nowMs) {
         finishEnding(seat, seat.sampleMs);
         stopCrossing(seat);
         seat.rssi = 1;
-        seat.windowed = false;
+        seat.windowed = seat.windowPeak = false;
     }
     stats_[0] = seat.lap;
     put16(stats_ + 1, boundedAge(nowMs, seat.passMs));
@@ -124,7 +124,7 @@ void Core::latchStats(uint32_t nowMs) {
     // from the extremum shown last than the nadir fell, else the nadir. A
     // short pass between polls then reaches RH's graph at its true height.
     if (seat.windowed) {
-        bool peak = seat.windowMax - seat.shown >= seat.shown - seat.windowMin;
+        bool peak = seat.windowPeak || seat.windowMax - seat.shown >= seat.shown - seat.windowMin;
         uint32_t firstMs = peak ? seat.maxFirstMs : seat.minFirstMs;
         uint32_t lastMs = peak ? seat.maxLastMs : seat.minLastMs;
         seat.shown = peak ? seat.windowMax : seat.windowMin;
@@ -132,7 +132,7 @@ void Core::latchStats(uint32_t nowMs) {
         stats_[11] = seat.shown;
         put16(stats_ + 12, boundedAge(nowMs, firstMs));
         put16(stats_ + 14, boundedAge(lastMs, firstMs));  // how long it held
-        seat.windowed = false;
+        seat.windowed = seat.windowPeak = false;
     } else {
         // No samples since the last poll: the latest (or stale) level.
         stats_[8] |= 2;
@@ -262,6 +262,7 @@ void Core::show(Seat& seat, uint8_t level, uint32_t firstMs, uint32_t lastMs) {
     seat.rssi = level;
     if (!seat.windowed) {
         seat.windowed = true;
+        seat.windowPeak = false;
         seat.windowMax = seat.windowMin = level;
         seat.maxFirstMs = seat.minFirstMs = firstMs;
         seat.maxLastMs = seat.minLastMs = lastMs;
@@ -281,6 +282,8 @@ void Core::show(Seat& seat, uint8_t level, uint32_t firstMs, uint32_t lastMs) {
             seat.minLastMs = lastMs;
         }
     }
+    // detect() has already raised passPeak for this sample.
+    if ((seat.crossing || seat.held) && level >= seat.passPeak) seat.windowPeak = true;
     uint32_t bucket = firstMs / kShowBucketMs;
     unsigned slot = bucket % kShowBuckets;
     // A held jump is shown late, at its own time: never over a newer bucket.

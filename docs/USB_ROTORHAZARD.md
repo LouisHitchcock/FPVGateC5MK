@@ -77,7 +77,14 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 - For RH's RSSI history (Marshal), each poll also reports one extremum of the
   samples since the previous poll, at its own sample times: the peak if it rose
   further from the extremum reported last than the nadir fell, otherwise the
-  nadir. The full 1 kHz trace is not transferred.
+  nadir. The full 1 kHz trace is not transferred. During a crossing, a poll
+  whose samples reach the pass peak always reports that peak, so the history
+  holds the first and last samples at the peak level. Marshal's
+  recalculation times a lap from those, as the live lap is, so with the same
+  EnterAt/ExitAt the two agree to the millisecond. Before this the peak's
+  poll often reported a multipath dip instead and recalculated laps were
+  tens of ms off (up to 142 ms with slow polls in a simulation against RH
+  4.4.0's own client).
 - After any frequency change no crossing starts for 100 ms, and NodePeak and
   NodeNadir ignore those samples: the scan restarts with empty filters, and a
   lone settling sample could otherwise blip the crossing flag or count a pass.

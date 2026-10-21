@@ -3,7 +3,9 @@
 Requires RH_SOURCE (RH checkout) and the compiled .pio/test/test_rh_usb.exe.
 No serial ports, running server or physical devices are used.
 """
+import math
 import os
+import random
 from pathlib import Path
 import subprocess
 import sys
@@ -67,6 +69,28 @@ class SimSerial:
         self.process.stdin.close()
         self.process.wait(timeout=5)
         self.process.stdout.close()
+
+
+def marshal_recalc(values, times, enter_at, exit_at):
+    """RH 4.4's Marshal recalculation (src/server/static/marshal.js), lap times only."""
+    laps = []
+    crossing = False
+    peak = peak_first = peak_last = 0
+    for rssi, time in zip(values, times):
+        if not crossing and rssi > enter_at:
+            crossing = True
+        if rssi >= peak:
+            peak_last = time
+            if rssi > peak:
+                peak_first = time
+                peak = rssi
+        if crossing and rssi < exit_at:
+            laps.append((peak_last + peak_first) / 2)
+            crossing = False
+            peak = 0
+    if crossing:
+        laps.append((peak_last + peak_first) / 2)
+    return laps
 
 
 class SimNodes(list):
@@ -161,6 +185,51 @@ class RotorHazardUsbTest(unittest.TestCase):
             self.serial.now = 1300
             self.interface.update()
         self.assertEqual(node.current_rssi, 30)  # then the floor again
+
+    def test_marshal_recalc_matches_realtime_laps(self):
+        # RH's Marshal recalculates laps from the RSSI history it stored. With
+        # the same EnterAt/ExitAt it must land on the same times as the laps
+        # recorded live, even when multipath ripples the top of each pass and
+        # RH polls slowly or unevenly (it polls every node in turn).
+        for seed, interval in [(1, 80), (2, 100), (3, 130), (4, 170), (5, 250)]:
+            with self.subTest(seed=seed, poll_ms=interval):
+                self.check_recalc(seed, interval)
+
+    def check_recalc(self, seed, interval):
+        self.setUp()
+        node = self.interface.nodes[5]
+        self.interface.set_enter_at_level(5, 140)
+        self.interface.set_exit_at_level(5, 110)
+        self.interface.pass_record_callback = Mock()
+        self.interface.node_crossing_callback = Mock()
+        self.interface.race_status = RHInterface.BaseHardwareInterface.RACE_STATUS_RACING
+        rng = random.Random(seed)
+        passes = [(2000 + 1500 * i, rng.uniform(30, 80), rng.uniform(0, math.tau)) for i in range(10)]
+
+        def level(t):
+            value = 75 + rng.gauss(0, 3)
+            for centre, period, phase in passes:
+                if abs(t - centre) < 600:
+                    bump = 115 * math.exp(-0.5 * ((t - centre) / 150) ** 2)
+                    value += bump * (1 - 0.25 * abs(math.sin(math.tau * (t - centre) / period + phase)))
+            return max(1, min(1023, round(value * 4)))
+
+        with patch.object(serial_node, 'monotonic', side_effect=lambda: self.serial.now / 1000):
+            self.serial.now = 1000
+            self.interface.update()
+            next_poll = 1000 + interval
+            for now in range(1001, passes[-1][0] + 1000):
+                self.serial.sample(5, level(now), now)
+                if now >= next_poll:
+                    self.serial.now = now
+                    self.interface.update()
+                    next_poll = now + interval + rng.randint(-20, 20)
+        realtime = [call.args[1] for call in self.interface.pass_record_callback.call_args_list]
+        self.assertEqual(len(realtime), len(passes))
+        recalc = marshal_recalc(node.history_values, node.history_times, 140, 110)
+        self.assertEqual(len(recalc), len(passes))
+        offsets = [round((min(recalc, key=lambda x: abs(x - r)) - r) * 1000, 1) for r in realtime]
+        self.assertLessEqual(max(map(abs, offsets)), 1.0, f'recalc minus realtime, ms: {offsets}')
 
     def test_native_capture_uses_live_rssi(self):
         node = self.interface.nodes[5]

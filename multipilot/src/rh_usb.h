@@ -92,7 +92,10 @@ private:
         // Highest and lowest level since RH's last poll, for its RSSI history:
         // it polls a few times a second, the scan samples ~1000 times. 'shown'
         // is the extremum reported last.
-        bool windowed = false;
+        // windowPeak: the window holds a sample at the crossing's peak level,
+        // so it is reported as a peak and RH's Marshal recalculation finds
+        // the same peak (and lap time) as the live lap.
+        bool windowed = false, windowPeak = false;
         uint8_t windowMax = 0, windowMin = 0, shown = 0;
         uint32_t maxFirstMs = 0, maxLastMs = 0, minFirstMs = 0, minLastMs = 0;
         // Rolling maximum for the RSSI RH shows: the highest sample in each

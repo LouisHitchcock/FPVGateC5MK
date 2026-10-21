@@ -186,6 +186,25 @@ void historyTests() {
     // No samples since the last poll: the latest level, as before.
     e = poll(250);
     CHECK((e[0] & 2) && level(e) == 40 && since(e) == 51 && held(e) == 0);
+    // During a crossing, a window holding the pass peak reports the peak even
+    // when its dip moved further from the last level shown: RH's Marshal
+    // times its recalculated lap from the peak in this history.
+    write(core, 0x71, {100});
+    write(core, 0x72, {80});
+    for (uint32_t t = 200; t < 210; ++t) core.sample(2, 560, t);  // 140, crossing
+    e = poll(210);
+    CHECK((e[0] & 2) && level(e) == 140);
+    for (uint32_t t = 210; t < 260; ++t) core.sample(2, t == 220 ? 600 : t >= 240 ? 360 : 560, t);  // 150, then 90
+    e = poll(260);
+    CHECK((e[0] & 2) && level(e) == 150 && since(e) == 40);
+    // The same window outside a crossing reports the dip, as before.
+    write(core, 0x71, {200});
+    write(core, 0x72, {190});
+    for (uint32_t t = 260; t < 270; ++t) core.sample(2, 560, t);
+    poll(270);
+    for (uint32_t t = 270; t < 320; ++t) core.sample(2, t == 280 ? 600 : t >= 300 ? 360 : 560, t);
+    e = poll(320);
+    CHECK(!(e[0] & 2) && level(e) == 90);
     // READ_LAP_STATS carries the same history in bytes 8-15.
     for (uint32_t t = 250; t < 300; ++t) core.sample(2, t == 260 ? 600 : 160, t);
     auto stats = read(core, port, 0x05, 300);
