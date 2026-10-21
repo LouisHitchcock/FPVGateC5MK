@@ -37,7 +37,7 @@ void Core::settleAll(uint32_t nowMs) {
     // Every frequency change restarts the scan of all seats with empty filters.
     for (auto& seat : seats_) {
         stopCrossing(seat);
-        seat.quiet = seat.quietSeen = false;
+        seat.quiet = seat.quietSeen = seat.smoothed = false;
         seat.settleUntilMs = nowMs + kSettleMs;
     }
 }
@@ -102,6 +102,7 @@ void Core::latchStats(uint32_t nowMs) {
     Seat& seat = seats_[selected_];
     bool stale = seat.sampled && nowMs - seat.sampleMs > 100;
     if (stale) {
+        finishEnding(seat, seat.sampleMs);
         stopCrossing(seat);
         seat.rssi = 1;
         seat.windowed = false;
@@ -219,17 +220,32 @@ void Core::sample(unsigned index, uint16_t rawRssi, uint32_t sampleMs) {
     uint8_t level = (uint8_t)(rawRssi / 4);
     if (level < 1) level = 1;
     if (level > 254) level = 254;
+    uint32_t elapsed = 0;
     if (seat.sampled) {
-        uint32_t elapsed = sampleMs - seat.sampleMs;
+        elapsed = sampleMs - seat.sampleMs;
         seat.loopUs = elapsed > 65 ? 65535 : (uint16_t)(elapsed * 1000);
         // No crossing may span an RF outage or a missing run of captures.
         if (elapsed > 100) {
+            finishEnding(seat, seat.sampleMs);
             stopCrossing(seat);
-            seat.quiet = false;
+            seat.quiet = seat.smoothed = false;
         }
     }
     seat.sampled = true;
     seat.sampleMs = sampleMs;
+    if (detect_.smoothMs) {
+        if (!seat.smoothed) {
+            seat.smooth = level;
+            seat.smoothed = true;
+        } else {
+            // Millisecond timestamps: samples in the same ms count as 1 ms apart.
+            float dt = elapsed ? (float)elapsed : 1.0f;
+            seat.smooth += ((float)level - seat.smooth) * dt / ((float)detect_.smoothMs + dt);
+        }
+        level = (uint8_t)(seat.smooth + 0.5f);
+    } else {
+        seat.smoothed = false;
+    }
     // Settling after a frequency change: shown, but not a pass or a node peak.
     if ((int32_t)(sampleMs - seat.settleUntilMs) < 0) {
         show(seat, level, sampleMs, sampleMs);
@@ -341,25 +357,40 @@ void Core::detect(Seat& seat, uint8_t level, uint32_t sampleMs) {
             seat.lastPeakMs = sampleMs;
         }
         if (level < seat.passNadir) seat.passNadir = level;
-        if (level < seat.exit && seat.held) {
-            // A jump that ended within holdMs is not a pass, nor shown.
-            seat.held = false;
-            seat.jumpDropped = true;
-            seat.passPeak = seat.keptPeak;
-            seat.passNadir = seat.keptNadir;
+        if (seat.held) {
+            if (level < seat.exit) {
+                // A jump that ended within holdMs is not a pass, nor shown.
+                seat.held = false;
+                seat.jumpDropped = true;
+                seat.passPeak = seat.keptPeak;
+                seat.passNadir = seat.keptNadir;
+            } else if (!seat.jumping) {
+                // The jump lasted (and was shown above): a normal crossing.
+                seat.held = false;
+                seat.crossing = true;
+                if (seat.jumpDropped) show(seat, seat.passPeak, seat.firstPeakMs, seat.lastPeakMs);
+            }
+        } else if (seat.ending) {
+            // Under ExitAt and waiting (see Detect): back over EnterAt is the same pass.
+            if (level >= seat.enter) seat.ending = false;
+            else if (sampleMs - seat.endingMs >= detect_.mergeMs) endPass(seat, sampleMs);
         } else if (level < seat.exit) {
-            seat.crossing = false;
-            seat.shownCrossing = true;
-            seat.shownUntilMs = sampleMs + kShowCrossingMs;
-            seat.passMs = seat.firstPeakMs + (seat.lastPeakMs - seat.firstPeakMs) / 2;
-            ++seat.lap;
-        } else if (seat.held && !seat.jumping) {
-            // The jump lasted (and was shown above): a normal crossing.
-            seat.held = false;
-            seat.crossing = true;
-            if (seat.jumpDropped) show(seat, seat.passPeak, seat.firstPeakMs, seat.lastPeakMs);
+            if (detect_.mergeMs) {
+                seat.ending = true;
+                seat.endingMs = sampleMs;
+            } else {
+                endPass(seat, sampleMs);
+            }
         }
     }
+}
+
+void Core::endPass(Seat& seat, uint32_t endMs) {
+    seat.crossing = seat.ending = false;
+    seat.shownCrossing = true;
+    seat.shownUntilMs = endMs + kShowCrossingMs;
+    seat.passMs = seat.firstPeakMs + (seat.lastPeakMs - seat.firstPeakMs) / 2;
+    ++seat.lap;
 }
 
 }  // namespace rhusb

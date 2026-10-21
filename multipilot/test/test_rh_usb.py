@@ -120,14 +120,19 @@ class RotorHazardUsbTest(unittest.TestCase):
             self.interface.update()  # establish the initial lap counters
             for now, value in [(1001, 440), (1003, 600), (1005, 600), (1007, 600), (1008, 300)]:
                 self.serial.sample(5, value, now)
+            # The pass ends once the level has stayed under ExitAt for 300 ms.
             self.serial.now = 1010
+            self.interface.update()
+            self.interface.pass_record_callback.assert_not_called()
+            self.serial.sample(5, 300, 1308)
+            self.serial.now = 1310
             self.interface.update()
         callback = self.interface.pass_record_callback
         callback.assert_called_once()
         node, timestamp, source = callback.call_args.args
         self.assertEqual(node.index, 5)
         self.assertEqual(node.pass_peak_rssi, 150)
-        self.assertAlmostEqual(timestamp, 49.995)
+        self.assertAlmostEqual(timestamp, 49.695)  # still the peak (1005), reported 305 ms later
         self.assertEqual(source, 0)
         self.assertTrue(node.history_times)
 

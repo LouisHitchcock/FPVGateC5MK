@@ -33,6 +33,18 @@ struct Reject {
     uint8_t margin = 16;     // "the floor": within this of the seat's nadir (~4 dB)
 };
 
+// A quad passing a gate in a small room dips under ExitAt and back for a few
+// hundred ms (multipath). A pass therefore ends only once the level has stayed
+// under ExitAt for mergeMs; back over EnterAt sooner is the same pass, timed
+// at its highest sample, as FPVGate does. The lap reaches RH mergeMs later,
+// still timed at the peak. smoothMs, if set, averages the level over about
+// that long before crossing detection and before RH sees it; it also lowers
+// the height of passes shorter than it, so it is off by default.
+struct Detect {
+    uint16_t mergeMs = 300;  // 0: a pass ends at the first sample under ExitAt
+    uint16_t smoothMs = 0;   // 0: off
+};
+
 // Command IDs and byte order follow RotorHazard's src/interface/RHInterface.py.
 enum Command : uint8_t {
     READ_FREQUENCY = 0x03, TEST_RX_REGISTER = 0x04, READ_LAP_STATS = 0x05,
@@ -66,6 +78,8 @@ public:
     // 0 for riseMs turns the rejection off.
     void setReject(const Reject& reject) { reject_ = reject; }
     const Reject& reject() const { return reject_; }
+    void setDetect(const Detect& detect) { detect_ = detect; }
+    const Detect& detect() const { return detect_; }
 
 private:
     struct Seat {
@@ -97,9 +111,16 @@ private:
         // A pass that ended, still shown as crossing until shownUntilMs.
         bool shownCrossing = false;
         uint32_t shownUntilMs = 0;
+        // A crossing under ExitAt since endingMs, waiting out Detect::mergeMs.
+        bool ending = false;
+        uint32_t endingMs = 0;
+        // The Detect::smoothMs average of the level (valid once smoothed).
+        bool smoothed = false;
+        float smooth = 0;
     } seats_[kSeats];
     Port& port_;
     Reject reject_;
+    Detect detect_;
     uint8_t selected_ = 0, command_ = 0, needed_ = 0, received_ = 0;
     uint8_t input_[3] = {}, stats_[16] = {};
     uint32_t lastByteMs_ = 0, lastCommandMs_ = 0;
@@ -114,7 +135,13 @@ private:
     static void show(Seat& seat, uint8_t level, uint32_t firstMs, uint32_t lastMs);
     // Crossings and laps; may hold a jump back from show (see Reject).
     void detect(Seat& seat, uint8_t level, uint32_t sampleMs);
-    static void stopCrossing(Seat& seat) { seat.crossing = seat.held = seat.shownCrossing = seat.jumping = false; }
+    // The crossing is over: count the lap, timed at the middle of its peak.
+    static void endPass(Seat& seat, uint32_t endMs);
+    // A crossing already waiting out mergeMs is a whole pass: count it.
+    static void finishEnding(Seat& seat, uint32_t endMs) { if (seat.crossing && seat.ending) endPass(seat, endMs); }
+    static void stopCrossing(Seat& seat) {
+        seat.crossing = seat.held = seat.shownCrossing = seat.jumping = seat.ending = false;
+    }
 };
 
 }  // namespace rhusb

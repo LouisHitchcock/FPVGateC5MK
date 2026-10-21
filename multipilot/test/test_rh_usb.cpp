@@ -39,9 +39,17 @@ void write(rhusb::Core& core, uint8_t command, std::initializer_list<uint8_t> da
     core.feed(sum, now);
 }
 
+// These tests count a lap the moment a pass ends (mergeTests covers the wait).
+void noMerge(rhusb::Core& core) {
+    rhusb::Detect d;
+    d.mergeMs = 0;
+    core.setDetect(d);
+}
+
 void tests() {
     Port port;
     rhusb::Core core(port);
+    noMerge(core);
     core.setIdentity("1.1.0", "xiaoc5");
     core.begin(0);
     CHECK(read(core, port, 0x22) == std::vector<uint8_t>({0x25, 36}));
@@ -189,6 +197,7 @@ void historyTests() {
 void shownAndSettleTests() {
     Port port;
     rhusb::Core core(port);
+    noMerge(core);
     core.begin(0);
     rhusb::Reject off;
     off.riseMs = 0;  // short peaks straight off the floor (see rejectTests)
@@ -225,6 +234,7 @@ void shownAndSettleTests() {
 void rejectTests() {
     Port port;
     rhusb::Core core(port);
+    noMerge(core);
     core.begin(0);
     write(core, 0x7A, {1}, 0);
     write(core, 0x71, {100}, 0);
@@ -302,6 +312,7 @@ void rejectTests() {
 void lowEnterTests() {
     Port port;
     rhusb::Core core(port);
+    noMerge(core);
     core.begin(0);
     write(core, 0x7A, {0}, 0);
     write(core, 0x71, {45}, 0);
@@ -319,6 +330,128 @@ void lowEnterTests() {
     run(300, 220);
     run(300, 120);
     CHECK(read(core, port, 0x05, t)[0] == (uint8_t)(before + 1));
+}
+
+// A pass that dips under ExitAt and comes back (multipath in a small room) is
+// one lap, timed at its highest point, counted once the level has stayed under
+// ExitAt for Detect::mergeMs.
+void mergeTests() {
+    Port port;
+    rhusb::Core core(port);
+    core.begin(0);
+    CHECK(core.detect().mergeMs == 300 && core.detect().smoothMs == 0);  // the defaults
+    rhusb::Reject off;
+    off.riseMs = 0;  // isolate the merge from the jump rejection
+    core.setReject(off);
+    write(core, 0x7A, {3}, 0);
+    write(core, 0x71, {100}, 0);
+    write(core, 0x72, {80}, 0);
+    uint32_t t = 200;  // one sample a ms; floor 30 (raw 120)
+    auto run = [&](uint32_t ms, uint16_t raw) { for (uint32_t end = t + ms; t < end; ++t) core.sample(3, raw, t); };
+    auto stats = [&]() { return read(core, port, 0x05, t); };
+    auto age = [](const std::vector<uint8_t>& s) { return s[1] * 256 + s[2]; };
+    run(300, 120);
+    uint8_t laps = stats()[0];
+    // Past EnterAt, 150 ms back on the floor, then a higher peak: one pass.
+    run(50, 480);  // 120
+    run(150, 120);
+    uint32_t peakStart = t;
+    run(20, 560);  // 140, its middle 9 ms in
+    run(200, 120);
+    auto s = stats();
+    CHECK(s[0] == laps && (s[8] & 1));  // 200 ms under ExitAt: still crossing
+    run(100, 120);
+    CHECK(stats()[0] == laps);          // 299 ms
+    run(1, 120);
+    s = stats();
+    CHECK(s[0] == (uint8_t)(laps + 1));  // 300 ms: the lap
+    CHECK(s[5] == 140);                  // timed and measured at the higher peak
+    CHECK(age(s) == (int)(t - (peakStart + 9)));
+    // Rising only to between ExitAt and EnterAt doesn't rejoin the pass: it
+    // ends 300 ms after it first went under ExitAt.
+    run(300, 120);
+    laps = stats()[0];
+    run(50, 480);
+    run(100, 120);
+    run(100, 360);  // 90
+    run(100, 120);
+    CHECK(stats()[0] == laps);
+    run(1, 120);
+    CHECK(stats()[0] == (uint8_t)(laps + 1));
+    // Two passes 400 ms apart are two laps.
+    laps = stats()[0];
+    run(50, 480);
+    run(400, 120);
+    run(50, 480);
+    run(301, 120);
+    CHECK(stats()[0] == (uint8_t)(laps + 2));
+    // A pass waiting to end when the samples stop still counts: at the next
+    // sample after the gap, or at RH's next read.
+    laps = stats()[0];
+    run(50, 480);
+    run(50, 120);
+    t += 200;
+    run(1, 120);
+    CHECK(stats()[0] == (uint8_t)(laps + 1));
+    run(300, 120);
+    run(50, 480);
+    run(50, 120);
+    t += 150;
+    CHECK(stats()[0] == (uint8_t)(laps + 2));
+    // RH's force-end drops it, as it drops any crossing.
+    run(300, 120);
+    laps = stats()[0];
+    run(50, 480);
+    run(50, 120);
+    write(core, 0x78, {0}, t);
+    run(400, 120);
+    CHECK(stats()[0] == laps);
+    // mergeMs 0: a pass ends at the first sample under ExitAt.
+    rhusb::Detect d;
+    d.mergeMs = 0;
+    core.setDetect(d);
+    run(50, 480);
+    run(1, 120);
+    CHECK(stats()[0] == (uint8_t)(laps + 1));
+}
+
+// Detect::smoothMs averages the level before crossing detection and before RH
+// sees it: a few-ms spike is noise, a real pass still counts.
+void smoothTests() {
+    Port port;
+    rhusb::Core core(port);
+    core.begin(0);
+    rhusb::Reject off;
+    off.riseMs = 0;
+    core.setReject(off);
+    rhusb::Detect d;
+    d.mergeMs = 0;
+    d.smoothMs = 20;
+    core.setDetect(d);
+    write(core, 0x7A, {4}, 0);
+    write(core, 0x71, {100}, 0);
+    write(core, 0x72, {80}, 0);
+    uint32_t t = 200;
+    auto run = [&](uint32_t ms, uint16_t raw) { for (uint32_t end = t + ms; t < end; ++t) core.sample(4, raw, t); };
+    auto stats = [&]() { return read(core, port, 0x05, t); };
+    run(300, 120);  // floor 30
+    uint8_t laps = stats()[0];
+    // A 3 ms spike to 150: averaged to under 50, no crossing, and RH sees it low.
+    run(3, 600);
+    auto s = stats();
+    CHECK(!(s[8] & 1) && s[3] < 50);
+    run(300, 120);
+    CHECK(stats()[0] == laps);
+    // 100 ms over EnterAt is a pass, its peak within a few levels of the raw one.
+    run(100, 600);
+    run(300, 120);
+    s = stats();
+    CHECK(s[0] == (uint8_t)(laps + 1));
+    CHECK(s[5] >= 145 && s[5] <= 150);
+    // After a gap in the samples the average restarts from the raw level.
+    t += 200;
+    run(1, 600);
+    CHECK(stats()[3] == 150);
 }
 
 // Line-based simulator for Python tests driving RH's actual serial-node client.
@@ -356,6 +489,8 @@ int main(int argc, char** argv) {
     shownAndSettleTests();
     rejectTests();
     lowEnterTests();
+    mergeTests();
+    smoothTests();
     printf("RH USB: %d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;
 }

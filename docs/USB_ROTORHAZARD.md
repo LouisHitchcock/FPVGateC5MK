@@ -97,6 +97,20 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   values (`node reject 0` turns it off) until the C5 restarts. On a bench
   recording on 2026-10-16 this dropped 116 of 128 VTX start-up and
   channel-change bursts and no passes.
+- A pass ends only once the level has stayed under ExitAt for 300 ms. A quad
+  passing a gate in a small room dips under ExitAt and back (multipath); back
+  over EnterAt within 300 ms is the same pass, timed at its highest sample, as
+  FPVGate's own lap detection does. Rising only to between ExitAt and EnterAt
+  doesn't rejoin it. The lap count reaches RH 300 ms after the pass, still
+  timed at the peak. A pass already waiting out the 300 ms when the samples
+  stop still counts; RH's force-end drops it, as it drops any crossing. In a
+  whoop hall with 1-unit ExitAt hysteresis, each pass produced up to five
+  extra crossings without this.
+  `node detect [merge smooth]` on the console changes it until the C5
+  restarts: `node detect 0` ends a pass at the first sample under ExitAt, as
+  before. `smooth` (ms, off by default) averages the level over about that
+  long before crossing detection and before RH sees it. That steadies a noisy
+  trace but lowers passes shorter than it on RH's graph, so try it per venue.
 - The crossing flag RH reads stays set for 250 ms after a pass ends. RH reads
   it about every 100 ms and a fast pass can be over EnterAt for less, so
   without this most fast passes never showed as crossings on its graph. Lap
