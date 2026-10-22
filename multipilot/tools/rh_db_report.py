@@ -3,6 +3,7 @@
 
     python tools/rh_db_report.py <database.db>
     python tools/rh_db_report.py <database.db> --replay [--rounds 3] [--nodes 0-7]
+    python tools/rh_db_report.py <database.db> --race 7 --compare "C5=0-7,RX5808=9-15" [--live]
 
 The report covers every node with a pilot, per round:
   floor/noise  median level between passes and its spread (robust sigma)
@@ -22,6 +23,16 @@ scores its laps against the marshalled ones. Build the replay first:
 The marshalled laps are taken as the truth. RH's stored history is much
 coarser than the C5's 1 kHz samples, so replay results show the direction of
 a change, not exact counts.
+
+--compare is for one race with several receivers timing the same pilot, on
+crossing timestamps (not lap times, which add two crossings' errors and hide
+a constant offset). Crossings within 1 s of each other across nodes are one
+gate pass. Per group: its median time against the reference group's median
+(the first group, or --reference), as mean offset, pass-to-pass scatter and
+worst case; and how far its own nodes disagree (median absolute deviation,
+worst). --live uses only laps recorded live (source 0), not recalculated.
+None of these is ground truth: only an outside reference (a camera on the
+line) says which receiver is right.
 """
 import argparse
 import json
@@ -53,7 +64,7 @@ def parse_range(text):
     return out
 
 
-def load(db, rounds, nodes):
+def load(db, rounds, nodes, race=None):
     c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     races = {rid: (rnd, heat, start) for rid, rnd, heat, start in
              c.execute("select id, round_id, heat_id, start_time from saved_race_meta")}
@@ -65,11 +76,14 @@ def load(db, rounds, nodes):
         rnd, heat, start = races[rid]
         if not pid or not hv or (rounds and rnd not in rounds) or (nodes and node not in nodes):
             continue
-        laps = list(c.execute("select lap_time_stamp / 1000.0, deleted from saved_race_lap "
+        if race is not None and rid != race:
+            continue
+        laps = list(c.execute("select lap_time_stamp / 1000.0, deleted, source from saved_race_lap "
                               "where pilotrace_id=? order by lap_time_stamp", (prid,)))
         rows.append(dict(race=rid, round=rnd, heat=heat, node=node, pilot=pilots.get(pid, "?"), freq=freq,
                          enter=enter, exit=exit_, times=[t - start for t in json.loads(ht)], vals=json.loads(hv),
-                         kept=[t for t, d in laps if not d], deleted=[t for t, d in laps if d]))
+                         kept=[t for t, d, _ in laps if not d], deleted=[t for t, d, _ in laps if d],
+                         live=[t for t, d, src in laps if not d and src == 0]))
     return rows
 
 
@@ -181,6 +195,60 @@ def replays(rows, exe, settings):
         print(f"  {merge:>8} {smooth:>9} {len(rs):>6} {passes:>7} {passes - missed:>6} {missed:>7} {extra:>6}")
 
 
+def parse_groups(text):
+    groups = {}
+    for part in text.split(","):
+        name, _, nodes = part.partition("=")
+        groups[name.strip()] = parse_range(nodes.replace(";", ","))
+    return groups
+
+
+def compare(rows, groups, reference, live_only):
+    by_node = {r["node"]: (r["live"] if live_only else r["kept"]) for r in rows}
+    if len({r["race"] for r in rows}) != 1:
+        sys.exit("--compare needs one race: use --race")
+    groups = {g: [n for n in sorted(nodes) if by_node.get(n)] for g, nodes in groups.items()}
+    if not groups.get(reference):
+        sys.exit(f"reference group {reference!r} has no laps")
+    # One gate pass: crossings from any node within 1 s of the cluster's first.
+    crossings = sorted((t, n) for g in groups.values() for n in g for t in by_node[n])
+    passes, cur = [], []
+    for t, n in crossings:
+        if cur and t - cur[0][0] > 1.0:
+            passes.append(cur)
+            cur = []
+        cur.append((t, n))
+    if cur:
+        passes.append(cur)
+    nodes_total = sum(len(g) for g in groups.values())
+    # A pass at least half the nodes saw (a node's first crossing in it counts).
+    passes = [{n: t for t, n in reversed(p)} for p in passes if len({n for _, n in p}) * 2 >= nodes_total]
+
+    def group_times(nodes, p):
+        return [p[n] for n in nodes if n in p]
+
+    print(f"\nCrossing timestamps, {len(passes)} passes, against the {reference} median ({'live laps only' if live_only else 'kept laps'}):")
+    print(f"  {'group':<16}{'nodes':>6}{'missing':>8}{'offset ms':>11}{'scatter':>9}{'worst':>7}{'MAD':>6}{'max dev':>9}")
+    for name, nodes in groups.items():
+        if not nodes:
+            print(f"  {name:<16} no laps")
+            continue
+        offs, devs, mads, missing = [], [], [], 0
+        for p in passes:
+            ref = group_times(groups[reference], p)
+            mine = group_times(nodes, p)
+            missing += len(nodes) - len(mine)
+            if not ref or not mine:
+                continue
+            m = st.median(mine)
+            offs.append(1000 * (m - st.median(ref)))
+            d = [1000 * abs(t - m) for t in mine]
+            devs.append(max(d))
+            mads.append(st.median(d))
+        print(f"  {name:<16}{len(nodes):>6}{missing:>8}{st.mean(offs):>+11.0f}{st.pstdev(offs):>9.0f}"
+              f"{max(map(abs, offs)):>7.0f}{st.median(mads):>6.0f}{max(devs):>9.0f}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("db")
@@ -190,10 +258,19 @@ def main():
     ap.add_argument("--exe", type=Path, default=Path(__file__).resolve().parents[1] / ".pio/test/rh_replay.exe")
     ap.add_argument("--settings", default="0:0,300:0,300:10,300:20",
                     help="merge:smooth pairs to replay (default %(default)s)")
+    ap.add_argument("--race", type=int, help="only this race (saved_race_meta id)")
+    ap.add_argument("--compare", type=parse_groups,
+                    help='receiver groups for crossing comparison, e.g. "C5=0-7,Novacore=8,RX5808=9-15" '
+                         '(use ; inside a group: "A=0;2;4")')
+    ap.add_argument("--reference", help="group the others are compared with (default: the first)")
+    ap.add_argument("--live", action="store_true", help="--compare live laps only (source 0)")
     a = ap.parse_args()
-    rows = load(a.db, a.rounds, a.nodes)
+    rows = load(a.db, a.rounds, a.nodes, a.race)
     if not rows:
         sys.exit("no nodes with a pilot match")
+    if a.compare:
+        compare(rows, a.compare, a.reference or next(iter(a.compare)), a.live)
+        return
     report(rows)
     leak(rows)
     if a.replay:
