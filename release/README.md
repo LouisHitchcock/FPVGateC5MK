@@ -9,7 +9,7 @@ marks:
 | `xiaoc5/` | Seeed Studio XIAO ESP32-C5 |
 
 The two boards use different link pins, so flash the folder for your board.
-Each image carries its board in its version (`1.2.3+c5zero`), and FPVGate
+Each image carries its board in its version (`1.2.4-rc.1+c5zero`), and FPVGate
 won't send an image to a C5 of the other board.
 
 ## First flash, over USB
@@ -57,7 +57,7 @@ updater on a C5.
 
 Both boards have built binaries. Waveshare USB discovery and local timing
 have been tested; physical XIAO USB validation is pending. See
-[1.2.3 release notes](RELEASE_NOTES.md) for the validation scope.
+[1.2.4-rc.1 release notes](RELEASE_NOTES.md) for the validation scope.
 
 `SHA256SUMS.txt` contains hashes using the board-prefixed GitHub asset names.
 The repository's `release/<board>/` files contain the same bytes.
@@ -68,11 +68,11 @@ Set the version in `multipilot/CMakeLists.txt`, then build both targets:
 
 ```text
 pio run -d multipilot -e c5zero -e xiaoc5
-node multipilot/tools/package_release.mjs 1.2.3
+node multipilot/tools/package_release.mjs 1.2.4-rc.1
 ```
 
 The packager checks chip IDs, embedded board versions, partition offsets,
 two OTA slots and image fit before copying files into `release/<board>/`.
 It also stages board-prefixed GitHub assets and checksums in
-`.dev/release-v1.2.3/`. Publish only after reviewing the build's SRAM checks
+`.dev/release-v1.2.4-rc.1/`. Publish only after reviewing the build's SRAM checks
 and running the tests; packaging is not a physical-device test.

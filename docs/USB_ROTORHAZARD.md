@@ -38,6 +38,11 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 
 ## Firmware behaviour
 
+The crossing merge and peak-history preservation described below are new in
+**1.2.4-rc.1** and are not in stable 1.2.3. Same-frequency sample sharing is
+also included in this RC. See [release notes](../release/RELEASE_NOTES.md)
+for the direct-USB accuracy comparison and hardware-validation limits.
+
 - After a reset the C5 sends nothing on USB until the host sends a byte; the
   dashboard and `mp.py` send a command first, and `mp.py console` stays quiet
   until something is typed. On Linux, opening the port resets the C5 (the
@@ -85,6 +90,9 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   poll often reported a multipath dip instead and recalculated laps were
   tens of ms off (up to 142 ms with slow polls in a simulation against RH
   4.4.0's own client).
+- From `1.2.4-rc.1`, seats on the same frequency share one capture, filtered
+  value and timestamp per scan cycle, in USB and UART modes. Thresholds and
+  crossing detection remain independent per seat.
 - After any frequency change no crossing starts for 100 ms, and NodePeak and
   NodeNadir ignore those samples: the scan restarts with empty filters, and a
   lone settling sample could otherwise blip the crossing flag or count a pass.

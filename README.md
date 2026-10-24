@@ -48,6 +48,13 @@ reports them to RH.
 
 ## Status
 
+**RotorHazard timing test:** [C5MK 1.2.4-rc.1](https://github.com/LouisHitchcock/FPVGateC5MK/releases/tag/v1.2.4-rc.1)
+adds native-USB peak-history alignment, multipath crossing merging and shared
+samples for seats on the same frequency. Choose the RC option in the
+[C5 flasher](https://fpvgate.xyz/c5.html#flasher). Stable remains 1.2.3.
+See [release notes](release/RELEASE_NOTES.md) for setup, the RX5808/camera
+comparison and validation limits; these RC images still need hardware testing.
+
 | | |
 |---|---|
 | Direct USB to RotorHazard (no S3), from `1.2.0` | Waveshare C5-Zero: eight R1-R8 nodes and live RSSI verified, timing reported working in local RH testing; XIAO USB validation pending |
