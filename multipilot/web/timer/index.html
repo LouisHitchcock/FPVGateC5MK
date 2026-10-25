@@ -212,6 +212,76 @@
   }
 </style>
 <link rel="stylesheet" href="../brand.css">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "C5MK FPV lap timer",
+ "url": "https://c5mk.fpvgate.xyz/timer/",
+ "description": "A free FPV lap timer for 1-4 pilots that runs in Chrome with an ESP32-C5 receiver: spoken lap times, sensitivity presets, RSSI graphs and CSV results.",
+ "applicationCategory": "SportsApplication",
+ "operatingSystem": "Chrome or Edge on a computer, Chrome on Android",
+ "browserRequirements": "Web Serial or WebUSB",
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ },
+ "isPartOf": {
+  "@type": "WebSite",
+  "name": "FPVGate C5MK",
+  "url": "https://c5mk.fpvgate.xyz/"
+ }
+}
+</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "Do I need RotorHazard or a Raspberry Pi?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. The receiver plugs straight into your phone or computer and the timer runs in the browser. If you already race with RotorHazard, the same receiver can also plug into RotorHazard as eight nodes."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How many pilots can it time?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "The browser timer handles 1–4 pilots. One C5MK receiver can measure up to eight, which you can use through RotorHazard or an FPVGate timer."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does it work on an iPhone or iPad?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. Safari and other iOS browsers can't talk to USB devices. Use Chrome on Android, or Chrome or Edge on a computer."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How accurate are the lap times?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Each signal reading is timestamped by the receiver's own clock, so delays in the USB link or the phone don't move the lap times. Lap accuracy against video hasn't been measured yet."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Is anything uploaded?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. The timer runs entirely in your browser. Settings stay on your device, and results only leave it if you export them."
+   }
+  }
+ ]
+}
+</script>
 </head>
 <body>
 <header>
@@ -228,7 +298,7 @@
   <!-- 1. Connect -->
   <section class="screen" id="scrConnect">
     <div class="card">
-      <h1>Time your laps</h1>
+      <h1>FPV lap timer in your browser</h1>
       <p>Plug a C5MK receiver into an Android phone or computer, pick your quad's channel and fly. Every pass through the gate is a lap.</p>
       <ol class="steps">
         <li><span class="n">1</span><div><b>Flash C5MK onto an ESP32-C5</b><div class="muted">With the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a>, and fit a 5.8 GHz antenna.</div></div></li>
@@ -238,6 +308,54 @@
       <button class="primary big" id="btnConnect">Connect receiver</button>
     </div>
     <div class="notice err" id="noUsb" hidden></div>
+    <div class="about">
+      <h2>A free FPV lap timer for practice and racing</h2>
+      <p>This page turns a phone or laptop into a 5.8&nbsp;GHz FPV lap timer. An ESP32-C5 running the free C5MK firmware measures each quad's video signal about 1000 times a second, and the page records a lap every time a quad passes the gate. There's no app to install, no account, and no Raspberry Pi or race server to set up.</p>
+      <div class="cols">
+        <div>
+          <h3>Features</h3>
+          <ul>
+            <li>Practice and race modes for 1–4 pilots, each on their own video channel</li>
+            <li>Raceband, Fatshark, Boscam A, B and E, and Lowband channels from 5180 to 5917&nbsp;MHz</li>
+            <li>Spoken lap times, with last and best lap for every pilot</li>
+            <li>Automatic noise-floor tracking and Low, Medium and High sensitivity presets</li>
+            <li>A live RSSI graph with draggable entry and exit thresholds for fine tuning</li>
+            <li>Results you can export as CSV</li>
+          </ul>
+        </div>
+        <div>
+          <h3>What you need</h3>
+          <ul>
+            <li>An ESP32-C5 board with a 5&nbsp;GHz antenna, such as the Waveshare ESP32-C5-Zero or Seeed Studio XIAO ESP32-C5</li>
+            <li>C5MK firmware, flashed from your browser with the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a></li>
+            <li>Chrome or Edge on a computer, or Chrome on an Android phone</li>
+            <li>A USB data cable</li>
+          </ul>
+        </div>
+      </div>
+      <h2>Questions</h2>
+      <details>
+        <summary>Do I need RotorHazard or a Raspberry Pi?</summary>
+        <p>No. The receiver plugs straight into your phone or computer and the timer runs in the browser. If you already race with RotorHazard, the same receiver can also <a href="../rotorhazard/">plug into RotorHazard as eight nodes</a>.</p>
+      </details>
+      <details>
+        <summary>How many pilots can it time?</summary>
+        <p>The browser timer handles 1–4 pilots. One C5MK receiver can measure up to eight, which you can use through RotorHazard or an FPVGate timer.</p>
+      </details>
+      <details>
+        <summary>Does it work on an iPhone or iPad?</summary>
+        <p>No. Safari and other iOS browsers can't talk to USB devices. Use Chrome on Android, or Chrome or Edge on a computer.</p>
+      </details>
+      <details>
+        <summary>How accurate are the lap times?</summary>
+        <p>Each signal reading is timestamped by the receiver's own clock, so delays in the USB link or the phone don't move the lap times. Lap accuracy against video hasn't been measured yet.</p>
+      </details>
+      <details>
+        <summary>Is anything uploaded?</summary>
+        <p>No. The timer runs entirely in your browser. Settings stay on your device, and results only leave it if you export them.</p>
+      </details>
+      <p class="tool-links"><a href="../">Live signal dashboard</a><a href="../vtx/">VTX channel check</a><a href="../rotorhazard/">C5MK with RotorHazard</a><a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">Source on GitHub</a></p>
+    </div>
   </section>
 
   <!-- 2. Set up -->
@@ -322,7 +440,7 @@
 </div>
 
 <footer>
-  <a href="../">Live signal view</a> · <a href="../vtx/">VTX check</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a> · runs in your browser, nothing is uploaded
+  <a href="../">Live signal view</a> · <a href="../vtx/">VTX check</a> · <a href="../rotorhazard/">RotorHazard</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a> · runs in your browser, nothing is uploaded
 </footer>
 
 <div id="countdown" hidden></div>

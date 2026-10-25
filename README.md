@@ -289,6 +289,7 @@ multipilot/                 the C5 firmware
   web/index.html            responsive live dashboard (desktop Web Serial / Android WebUSB)
   web/timer/                browser lap timer with optional RSSI graph and touch threshold tuning
   web/vtx/                  standalone VTX channel, frequency and relative power check
+  web/rotorhazard/          RotorHazard setup and comparison page (static)
 host/                       the receiving side, for your own timer
   c5host/                   portable C++ library for the UART link and gate passes
   examples/esp32s3/         minimal ESP32-S3 host (PlatformIO, Arduino)

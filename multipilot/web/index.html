@@ -10,12 +10,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111317">
-<title>FPVGate C5MK Live: 8-pilot 5.8 GHz FPV signal dashboard</title>
+<title>5.8 GHz FPV spectrum and signal dashboard for 8 pilots | FPVGate C5MK</title>
 <meta name="description" content="Watch up to eight FPV video transmitters live in your browser with an ESP32-C5 receiver: RSSI per pilot, spectrum, waterfall and VTX check. Free, open source, no install.">
 <link rel="canonical" href="https://c5mk.fpvgate.xyz/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FPVGate C5MK">
-<meta property="og:title" content="FPVGate C5MK Live: 8-pilot 5.8 GHz FPV signal dashboard">
+<meta property="og:title" content="5.8 GHz FPV spectrum and signal dashboard for 8 pilots | FPVGate C5MK">
 <meta property="og:description" content="Watch up to eight FPV video transmitters live in your browser with an ESP32-C5 receiver: RSSI per pilot, spectrum, waterfall and VTX check. Free, open source, no install.">
 <meta property="og:url" content="https://c5mk.fpvgate.xyz/">
 <meta property="og:image" content="https://c5mk.fpvgate.xyz/assets/social-preview.png">
@@ -274,6 +274,46 @@
  "keywords": "FPV lap timer, ESP32-C5, RotorHazard, multi-pilot lap timing, 5.8 GHz RSSI, RX5808 alternative, drone racing timer"
 }
 </script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "Receiver not appearing?\n        \n          Try another USB cable: some cables only provide power. Your phone must support USB devices.\n          Check that the C5 is powered and running C5MK firmware. It may appear as a USB JTAG/serial device in the picker.\n          Only one app or tab can use the receiver at a time. Disconnect it from other apps, then try again.\n          Open this site's HTTPS address and allow USB access when asked. Previously allowed receivers can reconnect automatically.\n        \n      \n      No account needed. Readings stay in your browser; nothing is uploaded.\n    \n    \n      What you can do\n      \n        Watch your pilots liveThe spectrum shows the signal on your selected channels. The large waterfall shows how those signals change over time, with the newest readings at the top.\n        Find and check a VTXOpen VTX check to find a video transmitter's channel, check its frequency and compare its power against a saved reference.\n        Time your lapsOpen Lap timer for practice or a race. Its live RSSI graphs help you tune detection: type entry / exit values or drag their handles.\n        Look across the bandOptional spectrum sweeps scan the supported 5180–5917 MHz range. Pilot history pauses during a sweep and resumes on your original channels when you stop.\n      \n      Signal levels are in receiver dB. Use changes and peaks to compare signals; these are not calibrated transmitter power readings.\n      Guides & firmware\n      \n        C5 radio guide and wiring\n        Using C5MK with RotorHazard\n        C5MK on GitHub\n      \n    \n  \n\n  \n    A live 5.8 GHz signal view for FPV\n    The C5MK dashboard shows what an ESP32-C5 receiver hears on up to eight FPV video channels at once. Each channel is measured about 1000 times a second, so you can watch pilots come and go on a waterfall, compare signal strength between quads, and spot interference before a race.\n    \n      \n        Features\n        \n          Up to eight pilot channels with live RSSI, peak hold and history\n          A waterfall of the last seconds of signal on every channel\n          Optional full-band spectrum sweeps from 5180 to 5917 MHz\n          VTX channel and relative power check\n          CSV signal recording, a receiver console and raw I/Q captures for tinkerers\n        \n      \n      \n        One receiver, several timers\n        \n          Browser lap timer for 1–4 pilots on a phone or laptop\n          RotorHazard: plug in over USB and get eight native nodes\n          FPVGate: the multi-pilot receiver for FPVGate's gate\n        \n      \n    \n    Questions\n    \n      What is C5MK?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Free, open firmware that uses the ESP32-C5's built-in 5 GHz Wi-Fi radio as an FPV video receiver. It hops between up to eight pilot channels and measures each about 1000 times a second, replacing a stack of RX5808 modules with one small board."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Which boards work?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "The Waveshare ESP32-C5-Zero and the Seeed Studio XIAO ESP32-C5 are tested. Any ESP32-C5 board needs a 5 GHz antenna fitted."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Which bands can it receive?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "5180 to 5917 MHz: Raceband, Fatshark, Boscam A and B, Lowband, and Boscam E apart from E7 and E8."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Are the signal levels in dBm?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. They're in receiver dB, which is ideal for comparing signals and spotting peaks but isn't a calibrated power reading."
+   }
+  }
+ ]
+}
+</script>
 </head>
 <body>
 <header class="top">
@@ -332,10 +372,52 @@
       <h3 style="margin-top:20px">Guides &amp; firmware</h3>
       <ul>
         <li><a href="https://fpvgate.xyz/c5.html" target="_blank" rel="noopener">C5 radio guide and wiring</a></li>
-        <li><a href="https://github.com/LouisHitchcock/FPVGateC5MK/blob/main/docs/USB_ROTORHAZARD.md" target="_blank" rel="noopener">Using C5MK with RotorHazard</a></li>
+        <li><a href="rotorhazard/">Using C5MK with RotorHazard</a></li>
         <li><a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">C5MK on GitHub</a></li>
       </ul>
     </div>
+  </section>
+
+  <section class="panel about" id="about">
+    <h2>A live 5.8&nbsp;GHz signal view for FPV</h2>
+    <p>The C5MK dashboard shows what an ESP32-C5 receiver hears on up to eight FPV video channels at once. Each channel is measured about 1000 times a second, so you can watch pilots come and go on a waterfall, compare signal strength between quads, and spot interference before a race.</p>
+    <div class="cols">
+      <div>
+        <h3>Features</h3>
+        <ul>
+          <li>Up to eight pilot channels with live RSSI, peak hold and history</li>
+          <li>A waterfall of the last seconds of signal on every channel</li>
+          <li>Optional full-band spectrum sweeps from 5180 to 5917&nbsp;MHz</li>
+          <li>VTX channel and relative power check</li>
+          <li>CSV signal recording, a receiver console and raw I/Q captures for tinkerers</li>
+        </ul>
+      </div>
+      <div>
+        <h3>One receiver, several timers</h3>
+        <ul>
+          <li><a href="timer/">Browser lap timer</a> for 1–4 pilots on a phone or laptop</li>
+          <li><a href="rotorhazard/">RotorHazard</a>: plug in over USB and get eight native nodes</li>
+          <li><a href="https://fpvgate.xyz/" target="_blank" rel="noopener">FPVGate</a>: the multi-pilot receiver for FPVGate's gate</li>
+        </ul>
+      </div>
+    </div>
+    <h2>Questions</h2>
+    <details>
+      <summary>What is C5MK?</summary>
+      <p>Free, open firmware that uses the ESP32-C5's built-in 5&nbsp;GHz Wi-Fi radio as an FPV video receiver. It hops between up to eight pilot channels and measures each about 1000 times a second, replacing a stack of RX5808 modules with one small board.</p>
+    </details>
+    <details>
+      <summary>Which boards work?</summary>
+      <p>The Waveshare ESP32-C5-Zero and the Seeed Studio XIAO ESP32-C5 are tested. Any ESP32-C5 board needs a 5&nbsp;GHz antenna fitted.</p>
+    </details>
+    <details>
+      <summary>Which bands can it receive?</summary>
+      <p>5180 to 5917&nbsp;MHz: Raceband, Fatshark, Boscam A and B, Lowband, and Boscam E apart from E7 and E8.</p>
+    </details>
+    <details>
+      <summary>Are the signal levels in dBm?</summary>
+      <p>No. They're in receiver dB, which is ideal for comparing signals and spotting peaks but isn't a calibrated power reading.</p>
+    </details>
   </section>
 
   <div id="live" hidden>
@@ -443,6 +525,9 @@
 
 <footer>
   <span>FPVGate C5MK live dashboard · runs in your browser, nothing is uploaded</span>
+  <a href="timer/">Lap timer</a>
+  <a href="vtx/">VTX check</a>
+  <a href="rotorhazard/">RotorHazard</a>
   <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
   <a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">Source</a>
   <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash firmware</a>
@@ -1666,7 +1751,7 @@ function setScanning(on) {
 
 function showLive() {
   if (!$("live").hidden) return;
-  $("intro").hidden = true;
+  $("intro").hidden = $("about").hidden = true;
   $("live").hidden = false;
 }
 
