@@ -63,6 +63,60 @@
   footer a { color: var(--soft); }
 </style>
 <link rel="stylesheet" href="../brand.css">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "C5MK VTX check",
+ "url": "https://c5mk.fpvgate.xyz/vtx/",
+ "description": "Find a quad's 5.8 GHz video channel, check its centre frequency and compare its power against a reference, in the browser with an ESP32-C5 receiver.",
+ "applicationCategory": "SportsApplication",
+ "operatingSystem": "Chrome or Edge on a computer, Chrome on Android",
+ "browserRequirements": "Web Serial or WebUSB",
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ },
+ "isPartOf": {
+  "@type": "WebSite",
+  "name": "FPVGate C5MK",
+  "url": "https://c5mk.fpvgate.xyz/"
+ }
+}
+</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "Is this a calibrated power meter?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. The comparison is relative: it tells you whether a VTX is stronger or weaker than your reference at the same distance, not its output in milliwatts."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What hardware do I need?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "An ESP32-C5 board with a 5 GHz antenna running the free C5MK firmware, which you can flash from the C5 flasher, and a USB data cable."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Can the same receiver time laps?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes. Use the browser lap timer for 1–4 pilots, or plug it into RotorHazard for up to eight."
+   }
+  }
+ ]
+}
+</script>
 </head>
 <body>
 <header>
@@ -84,10 +138,35 @@
   </section>
 
   <section id="vtxPanel" hidden></section>
+
+  <section class="about" id="aboutVtx">
+    <h2>Find your VTX channel and check its power</h2>
+    <p>Not sure which channel a quad's video transmitter is on? Power the quad up near a C5MK receiver and this page scans the 5.8&nbsp;GHz bands, names the channel, shows how far the VTX sits from the channel's centre frequency, and compares its signal with a reference you saved earlier.</p>
+    <ul>
+      <li>Scans Raceband, Fatshark and Boscam A, B and E channels from 5180 to 5917&nbsp;MHz</li>
+      <li>Flags a transmitter that's off its channel's centre frequency</li>
+      <li>Compares power against a saved reference, such as a known 25&nbsp;mW VTX</li>
+      <li>Runs in Chrome or Edge on a computer, or Chrome on Android, with nothing to install</li>
+    </ul>
+    <h2>Questions</h2>
+    <details>
+      <summary>Is this a calibrated power meter?</summary>
+      <p>No. The comparison is relative: it tells you whether a VTX is stronger or weaker than your reference at the same distance, not its output in milliwatts.</p>
+    </details>
+    <details>
+      <summary>What hardware do I need?</summary>
+      <p>An ESP32-C5 board with a 5&nbsp;GHz antenna running the free C5MK firmware, which you can flash from the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a>, and a USB data cable.</p>
+    </details>
+    <details>
+      <summary>Can the same receiver time laps?</summary>
+      <p>Yes. Use the <a href="../timer/">browser lap timer</a> for 1–4 pilots, or <a href="../rotorhazard/">plug it into RotorHazard</a> for up to eight.</p>
+    </details>
+  </section>
+
 </main>
 
 <footer>
-  <a href="../">Live signal view</a> · <a href="../timer/">Lap timer</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
+  <a href="../">Live signal view</a> · <a href="../timer/">Lap timer</a> · <a href="../rotorhazard/">RotorHazard</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
 </footer>
 
 <script type="module">
@@ -107,7 +186,7 @@ link.addEventListener("state", e => {
   const { connected, text } = e.detail;
   $("dot").className = "dot" + (connected ? " ok" : /Connecting/.test(text) ? " busy" : "");
   $("connText").textContent = connected ? "Connected" : /Connecting/.test(text) ? "Connecting…" : "Not connected";
-  $("cardConnect").hidden = connected;
+  $("cardConnect").hidden = $("aboutVtx").hidden = connected;
   $("vtxPanel").hidden = !connected;
   if (connected) { notice(""); link.send("scan on"); }
   else if (!/Connecting|Not connected/.test(text)) notice(text, true);
