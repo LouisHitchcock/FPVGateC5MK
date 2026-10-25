@@ -10,8 +10,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111317">
-<title>C5MK Live | FPVGate</title>
-<meta name="description" content="Live dashboard for the FPVGate C5MK multi-pilot 5.8 GHz receiver: connect over USB and watch every pilot's signal in your browser.">
+<title>FPVGate C5MK Live: 8-pilot 5.8 GHz FPV signal dashboard</title>
+<meta name="description" content="Watch up to eight FPV video transmitters live in your browser with an ESP32-C5 receiver: RSSI per pilot, spectrum, waterfall and VTX check. Free, open source, no install.">
+<link rel="canonical" href="https://c5mk.fpvgate.xyz/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FPVGate C5MK">
+<meta property="og:title" content="FPVGate C5MK Live: 8-pilot 5.8 GHz FPV signal dashboard">
+<meta property="og:description" content="Watch up to eight FPV video transmitters live in your browser with an ESP32-C5 receiver: RSSI per pilot, spectrum, waterfall and VTX check. Free, open source, no install.">
+<meta property="og:url" content="https://c5mk.fpvgate.xyz/">
+<meta property="og:image" content="https://c5mk.fpvgate.xyz/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://c5mk.fpvgate.xyz/assets/social-preview.png">
 <link rel="icon" href="assets/fpvgate-logo.png" type="image/png">
 <style>
   :root {
@@ -234,6 +245,35 @@
   }
 </style>
 <link rel="stylesheet" href="brand.css">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "SoftwareApplication",
+ "name": "FPVGate C5MK",
+ "applicationCategory": "SportsApplication",
+ "operatingSystem": "ESP32-C5 firmware; Chrome or Edge (Web Serial), Chrome on Android (WebUSB)",
+ "description": "Open firmware that turns one ESP32-C5 into a multi-pilot 5.8 GHz FPV lap timing receiver: up to eight pilots at about 1000 RSSI readings per second each, native RotorHazard nodes over USB, and a browser lap timer.",
+ "url": "https://c5mk.fpvgate.xyz/",
+ "image": "https://c5mk.fpvgate.xyz/assets/social-preview.png",
+ "codeRepository": "https://github.com/LouisHitchcock/FPVGateC5MK",
+ "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+ "author": {
+  "@type": "Person",
+  "name": "Louis Hitchcock"
+ },
+ "isPartOf": {
+  "@type": "WebSite",
+  "name": "FPVGate",
+  "url": "https://fpvgate.xyz/"
+ },
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ },
+ "keywords": "FPV lap timer, ESP32-C5, RotorHazard, multi-pilot lap timing, 5.8 GHz RSSI, RX5808 alternative, drone racing timer"
+}
+</script>
 </head>
 <body>
 <header class="top">
