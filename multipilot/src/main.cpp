@@ -24,6 +24,8 @@
 #include "link.h"
 #include "meter.h"
 #include "node.h"
+#include "nvs.h"
+#include "panel.h"
 #include "radio.h"
 
 using hostlink::say;
@@ -210,8 +212,30 @@ bool dumpLooksLive(const char* label, char* out, size_t cap) {
 }
 
 // Returns false if the radio didn't come up (no Wi-Fi or no live dumps).
+// Eight slots, 0 = off. A saved list replaces the Raceband default.
+void loadSavedPilots() {
+    nvs_handle_t h;
+    uint16_t mhz[kMaxPilots] = {};
+    size_t len = sizeof mhz;
+    if (nvs_open("mpscan", NVS_READONLY, &h) != ESP_OK) return;
+    esp_err_t e = nvs_get_blob(h, "pilots", mhz, &len);
+    nvs_close(h);
+    if (e != ESP_OK || len != sizeof mhz) return;
+    int list[kMaxPilots];
+    int n = 0;
+    for (int i = 0; i < kMaxPilots; ++i) {
+        if (!mhz[i]) continue;
+        if (mhz[i] < kMinMhz || mhz[i] > kMaxMhz) return;
+        list[n++] = mhz[i];
+    }
+    if (!n) return;
+    memcpy(cfg.pilots, list, sizeof(int) * (size_t)n);
+    cfg.count = n;
+}
+
 bool bringUp() {
     memcpy(cfg.pilots, kRaceband, sizeof kRaceband);
+    loadSavedPilots();
     applyMeter();
     bool wifi = radio::begin(cfg.bw);
     char* p = bootReport;
@@ -736,6 +760,13 @@ void scanCycle() {
             p.filtCdb = centi(filt[i].value());
         }
         if (fb) p.flags |= mp::kPilotFallback;
+#ifdef C5MK_PANEL
+        // Same default map as node::Core ( -10 .. 53.75 dB -> 0 .. 1023 ).
+        float db = filt[i].value();
+        float scaled = (db + 10.f) * (1023.f / 63.75f);
+        uint16_t rssi = !(scaled > 0.f) ? 0 : scaled > 1023.f ? 1023 : (uint16_t)(scaled + 0.5f);
+        panelNote((uint16_t)cfg.pilots[i], rssi, (uint8_t)cfg.gain, false);
+#endif
     }
     lastCycleUs = (uint32_t)(esp_timer_get_time() - c0);
     mp::RssiHeader h = {seq++, (uint8_t)cfg.count, (uint8_t)(settingsChanged ? mp::kRecSettingsChanged : 0),
@@ -746,6 +777,7 @@ void scanCycle() {
 }
 
 void scanTask(void*) {
+    panelBegin();
     bool radioOk = bringUp();
     nodelink::begin(&nodeRadio, radioOk);
     say("FPVGate C5MK ready\n");
@@ -770,6 +802,7 @@ void scanTask(void*) {
                 say("node mode: FPVGate S3 in control (scan paused; 'scan on' to take it back)\n");
             }
             nodelink::step();
+            panelService();
             continue;
         }
         nodelink::step();   // heartbeat status to the S3
@@ -779,12 +812,50 @@ void scanTask(void*) {
         } else {
             vTaskDelay(pdMS_TO_TICKS(5));
         }
+        panelService();
     }
 }
 
 }  // namespace
 
+void c5mkLocalPilotsGet(uint16_t mhz[8]) {
+    memset(mhz, 0, sizeof(uint16_t) * 8);
+    int n = cfg.count < 8 ? cfg.count : 8;
+    for (int i = 0; i < n; ++i) mhz[i] = (uint16_t)cfg.pilots[i];
+}
+
+void c5mkLocalPilotsSet(const uint16_t mhz[8]) {
+    int list[kMaxPilots];
+    int n = 0;
+    for (int i = 0; i < 8; ++i) {
+        if (!mhz[i]) continue;
+        if (mhz[i] < kMinMhz || mhz[i] > kMaxMhz || n == kMaxPilots) return;
+        list[n++] = mhz[i];
+    }
+    if (!n) return;
+    memcpy(cfg.pilots, list, sizeof(int) * (size_t)n);
+    cfg.count = n;
+    resetFilters();
+    if (nodelink::active()) nodelink::deactivate();
+    cfg.scanning = true;
+    nvs_handle_t h;
+    if (nvs_open("mpscan", NVS_READWRITE, &h) == ESP_OK) {
+        uint16_t saved[8] = {};
+        for (int i = 0; i < n; ++i) saved[i] = (uint16_t)list[i];
+        nvs_set_blob(h, "pilots", saved, sizeof saved);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    say("panel pilots");
+    for (int i = 0; i < n; ++i) say(" %d", list[i]);
+    say("\n");
+}
+
 extern "C" void app_main(void) {
     hostlink::begin();
+#ifdef C5MK_PANEL
+    xTaskCreate(scanTask, "scan", 12288, nullptr, 10, nullptr);
+#else
     xTaskCreate(scanTask, "scan", 8192, nullptr, 10, nullptr);
+#endif
 }

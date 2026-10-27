@@ -17,6 +17,11 @@ void poll();
 void step();
 bool active();
 bool rhUsbActive();
+// What the link UART has delivered. Host: a valid protocol session (FPVGate
+// or any other speaker of it). Other: bytes that are not that protocol.
+// None: the wire is quiet.
+enum class UartPeer : uint8_t { None, Host, Other };
+UartPeer uartPeer();
 // Leaving node mode drops the frequency (status ERR_FREQ, MHz 0) so the
 // scanner can use the radio; the S3's next F command takes it back.
 void deactivate();

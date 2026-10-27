@@ -14,6 +14,7 @@
 #include "link.h"
 #include "mbedtls/sha256.h"
 #include "nvs.h"
+#include "panel.h"
 #include "rh_usb.h"
 
 // The link UART. Its own pins, so no boot or debug text ever reaches the S3.
@@ -135,6 +136,12 @@ rhusb::Core rh(rhPort);
 bool onTrial = false;   // a new image not yet confirmed
 bool isActive = false;
 bool enabled = true;     // `node off` ignores the S3
+// A host that has the session may sit quiet after the slot list. Fresh
+// protocol traffic, or a quiet session, is Host. Bytes since the last valid
+// line, with that line gone stale, are some other device on the wire.
+constexpr int64_t kUartLiveUs = 2500000;
+int64_t lastGoodUs = 0;
+int64_t lastRxUs = 0;
 int storedGain = -1;
 ViewSlot view[kViewSlots];
 int viewCount = 0;
@@ -232,7 +239,7 @@ void saveGain(int g) {
     nvs_close(h);
 }
 
-void onSample(int mhz, float rawDb, float filtDb, uint16_t, uint32_t t) {
+void onSample(int mhz, float rawDb, float filtDb, uint16_t rssi, uint32_t t) {
     int i = 0;
     while (i < viewCount && view[i].mhz != mhz) ++i;
     if (i == viewCount) {
@@ -249,6 +256,7 @@ void onSample(int mhz, float rawDb, float filtDb, uint16_t, uint32_t t) {
     view[i].filt = filtDb;
     view[i].tUs = t;
     view[i].touched = esp_timer_get_time();
+    panelNote((uint16_t)mhz, rssi, (uint8_t)core->gain(), true);
 }
 
 int16_t centi(float db) {
@@ -324,11 +332,12 @@ void poll() {
     uint8_t buf[128];
     int n;
     while ((n = uart_read_bytes(kUart, buf, sizeof buf, 0)) > 0) {
-        if (rhActive) continue;
-        if (!enabled) continue;
+        if (rhActive || !enabled) continue;
+        lastRxUs = esp_timer_get_time();
         uint32_t before = core->reader.good;
         for (int i = 0; i < n; ++i) core->onByte((char)buf[i], nowUs());
         if (core->reader.good != before) {
+            lastGoodUs = lastRxUs;
             isActive = true;
             confirmImage();
         }
@@ -357,6 +366,18 @@ void step() {
 
 bool active() { return isActive; }
 bool rhUsbActive() { return rhActive; }
+
+UartPeer uartPeer() {
+    int64_t now = esp_timer_get_time();
+    bool goodFresh = lastGoodUs && now - lastGoodUs < kUartLiveUs;
+    bool rxFresh = lastRxUs && now - lastRxUs < kUartLiveUs;
+    if (goodFresh) return UartPeer::Host;
+    // Traffic since the last valid line, and that line is no longer fresh.
+    if (rxFresh && lastRxUs > lastGoodUs) return UartPeer::Other;
+    if (isActive && lastGoodUs) return UartPeer::Host;
+    if (rxFresh) return UartPeer::Other;
+    return UartPeer::None;
+}
 
 void deactivate() {
     if (!isActive) return;

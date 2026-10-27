@@ -35,6 +35,7 @@ through them on its own and streams timestamped RSSI for every pilot over a
 | 2-8 pilot races through FPVGate | Implemented; not yet raced with two or more real pilots |
 | Waveshare ESP32-C5-Zero (`c5zero`) | Tested |
 | Seeed Studio XIAO ESP32-C5 (`xiaoc5`) | Tested: 1031 Hz per pilot through FPVGate, VTX on R8 received |
+| RockBase NM-CYD-C5 (`cydc5`) | Firmware added: local RSSI screen, link pins same as `c5zero`. Not yet run on the board |
 | Lap accuracy against video | Not measured yet |
 | Direct USB to RotorHazard (no S3), from `1.2.0` | Waveshare C5-Zero: eight R1-R8 nodes and live RSSI verified, timing reported working in local RH testing; XIAO USB validation pending |
 
@@ -50,6 +51,8 @@ You need an ESP32-C5 board, a 5 GHz antenna on it, and
 cd multipilot
 pio run -e c5zero -t upload --upload-port <port>
 ```
+
+For the NM-CYD-C5, use `-e cydc5` in place of `-e c5zero`.
 
 On Windows run PlatformIO from PowerShell or cmd, not Git Bash. Then check
 the radio came up, over the C5's USB port:
@@ -75,12 +78,14 @@ side; `host/` has a ready-made library and an ESP32-S3 example.
 The C5 needs power, ground and two UART lines. On an FPVGate built on a XIAO
 ESP32-S3, the link uses the pins the RX5808 used to:
 
-| Host (XIAO ESP32-S3) | `c5zero` | `xiaoc5` |
-|---|---|---|
-| GPIO4 / D3 (TX) | GPIO4 (RX) | GPIO23 / D4 (RX) |
-| GPIO5 / D4 (RX) | GPIO5 (TX) | GPIO24 / D5 (TX) |
-| 5V (VUSB) | 5V | 5V (VUSB) |
-| GND | GND | GND |
+| Host (XIAO ESP32-S3) | `c5zero` | `xiaoc5` | `cydc5` |
+|---|---|---|---|
+| GPIO4 / D3 (TX) | GPIO4 (RX) | GPIO23 / D4 (RX) | GPIO4 (RX), header P5 |
+| GPIO5 / D4 (RX) | GPIO5 (TX) | GPIO24 / D5 (TX) | GPIO5 (TX), header P5 |
+| 5V (VUSB) | 5V | 5V (VUSB) | 5V (USB-C) |
+| GND | GND | GND | GND |
+
+`cydc5` is the RockBase NM-CYD-C5. P5 is the GPS header: the host's TX goes to the pin marked RX. The 2.8 inch panel shows the latest RSSI for up to eight frequencies. A link mark beside the title is green while a UART host session is up (FPVGate or another speaker of the same protocol), yellow while the wire is carrying something else, and dark when it is quiet. **CONFIGURE** at the bottom edits the local Raceband list used while this board is scanning on its own. It is not the data path. The UART stream to FPVGate is the same as on `c5zero`. GPIO24 is the panel D/C line, so this board cannot use the XIAO link pins.
 
 **Power the C5 from 5 V, not from the S3's 3V3 pin.** The C5's radio draws a
 burst of current as it starts, and the XIAO S3's 3.3 V regulator, already

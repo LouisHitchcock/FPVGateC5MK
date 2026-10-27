@@ -10,12 +10,13 @@ calibration. The firmware for the receiving device is in
 ### The C5 board
 
 Any ESP32-C5 board should work: the firmware only uses the chip's own radio,
-one UART and native USB. Two are set up already:
+one UART and native USB. Three are set up already:
 
 | Board | Environment | Link pins (RX / TX) | Status |
 |---|---|---|---|
 | Waveshare ESP32-C5-Zero | `c5zero` | GPIO4 / GPIO5 | Tested |
 | Seeed Studio XIAO ESP32-C5 | `xiaoc5` | GPIO23 (D4) / GPIO24 (D5) | Tested |
+| RockBase NM-CYD-C5 | `cydc5` | GPIO4 / GPIO5 (header P5) | Running on the board |
 
 Both perform the same on the bench; see RF_RESEARCH.md section 8. Other
 boards need their link pins set (section 3).
@@ -105,6 +106,23 @@ pins, the USB pins (13, 14) or UART0's console pins. After flashing, the
 
 `sdkconfig.defaults` sets 4 MB of flash, which suits any C5 module with 4 MB
 or more.
+
+### NM-CYD-C5
+
+Build with `pio run -e cydc5`. The link pins match `c5zero` and come out on
+the GPS header P5: host TX to GPIO4, host RX from GPIO5. GPIO24 is the panel
+D/C line and cannot be a link pin.
+
+The ST7789 (SCK 6, MOSI 7, MISO 2, CS 23, D/C 24, backlight 25, reset tied
+to the chip reset) draws eight RSSI bars. The link mark beside the title is
+green while a UART host session is up, yellow while bytes arrive that are
+not the link protocol, and dark when the UART is quiet. The bottom **CONFIGURE** button reads the XPT2046 on that same bus (touch CS GPIO1, MISO GPIO2) and edits the local Raceband list. The SD card CS (GPIO10) stays high. The scan task repaints one
+row every 80 ms between cycles and does not paint during a capture. The
+pixels are bit-banged: the SPI driver reserves several kilobytes of the
+SRAM the I/Q dump uses. The bars are a local view. The UART and USB streams
+are unchanged.
+The image uses the same 4 MB layout as the other boards; the rest of the
+module's 16 MB flash is unused.
 
 ## 4. Gain
 

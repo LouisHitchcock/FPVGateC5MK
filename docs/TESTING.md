@@ -37,7 +37,7 @@ the portable tests does not establish RF performance or USB driver behaviour.
 From `multipilot`:
 
 ```text
-pio run -e c5zero -e xiaoc5
+pio run -e c5zero -e xiaoc5 -e cydc5
 ```
 
 Both must build, and `check_sram` must report every symbol `ok`.
