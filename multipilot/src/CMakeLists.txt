@@ -1,8 +1,9 @@
 set(MP_SRCS "main.cpp" "dump.cpp" "radio.cpp" "meter.cpp" "frame.cpp" "link.cpp" "node.cpp" "node_core.cpp" "rh_usb.cpp")
 set(MP_REQS esp_wifi esp_phy nvs_flash esp_event esp_timer heap esp_driver_usb_serial_jtag esp_driver_uart
             app_update esp_app_format mbedtls)
-# The CYD panel is a different binary: it is not linked into c5zero or xiaoc5,
-# so those images keep the SRAM layout check_sram.py already allows.
+# Display and touchscreen are a different binary. c5zero and xiaoc5 do not
+# compile panel.cpp, and they do not get C5MK_PANEL, so those images keep
+# the SRAM layout check_sram.py already allows.
 if(NODE_BOARD STREQUAL "cydc5")
     list(APPEND MP_SRCS "panel.cpp")
     # GPIO only. The SPI master driver puts several KB of IRAM in the same

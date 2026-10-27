@@ -15,6 +15,13 @@
 
 #include "panel.h"
 
+// CMake adds this file only for the cydc5 target, which also defines
+// C5MK_PANEL. The guard keeps the ST7789 and XPT2046 code out of any
+// other image if the source list and the flag ever get out of step.
+#ifndef C5MK_PANEL
+#error "panel.cpp is the CYD display and touchscreen; build it only for cydc5"
+#endif
+
 #include <stdio.h>
 #include <string.h>
 

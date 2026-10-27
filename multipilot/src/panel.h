@@ -1,6 +1,7 @@
-// Optional local display. Empty on every board except the NM-CYD-C5 build
-// (C5MK_PANEL). The scan task publishes readings and paints between cycles;
-// the link UART is unchanged.
+// Optional local display and touchscreen. The driver (panel.cpp, the
+// ST7789, and the XPT2046) is compiled only for the NM-CYD-C5 build
+// (C5MK_PANEL). Other boards get empty calls and do not link that code.
+// The link UART is unchanged.
 #ifndef MP_PANEL_H
 #define MP_PANEL_H
 

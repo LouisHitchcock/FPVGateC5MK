@@ -24,7 +24,9 @@
 #include "link.h"
 #include "meter.h"
 #include "node.h"
+#ifdef C5MK_PANEL
 #include "nvs.h"
+#endif
 #include "panel.h"
 #include "radio.h"
 
@@ -212,7 +214,8 @@ bool dumpLooksLive(const char* label, char* out, size_t cap) {
 }
 
 // Returns false if the radio didn't come up (no Wi-Fi or no live dumps).
-// Eight slots, 0 = off. A saved list replaces the Raceband default.
+#ifdef C5MK_PANEL
+// Eight slots, 0 = off. The CYD editor's saved list replaces the Raceband default.
 void loadSavedPilots() {
     nvs_handle_t h;
     uint16_t mhz[kMaxPilots] = {};
@@ -232,10 +235,13 @@ void loadSavedPilots() {
     memcpy(cfg.pilots, list, sizeof(int) * (size_t)n);
     cfg.count = n;
 }
+#endif
 
 bool bringUp() {
     memcpy(cfg.pilots, kRaceband, sizeof kRaceband);
+#ifdef C5MK_PANEL
     loadSavedPilots();
+#endif
     applyMeter();
     bool wifi = radio::begin(cfg.bw);
     char* p = bootReport;
@@ -818,6 +824,7 @@ void scanTask(void*) {
 
 }  // namespace
 
+#ifdef C5MK_PANEL
 void c5mkLocalPilotsGet(uint16_t mhz[8]) {
     memset(mhz, 0, sizeof(uint16_t) * 8);
     int n = cfg.count < 8 ? cfg.count : 8;
@@ -850,6 +857,7 @@ void c5mkLocalPilotsSet(const uint16_t mhz[8]) {
     for (int i = 0; i < n; ++i) say(" %d", list[i]);
     say("\n");
 }
+#endif
 
 extern "C" void app_main(void) {
     hostlink::begin();
