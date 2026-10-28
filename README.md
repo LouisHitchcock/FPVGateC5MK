@@ -1,10 +1,4 @@
 <div align="center">
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="multipilot/web/logo-white.svg">
-  <img src="multipilot/web/logo-black.svg" alt="C5MK waveform logo" width="200">
-</picture>
-
 # FPVGate C5MK
 
 **An 8-pilot FPV lap timer receiver on one ESP32-C5.**
