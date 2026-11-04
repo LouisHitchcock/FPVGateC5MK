@@ -2,6 +2,11 @@
 
 Multi-pilot 5.8 GHz RSSI receiver firmware for the ESP32-C5.
 
+Version **1.2.5** promotes the 1.2.4-rc.1 receiver runtime, with shared-frequency
+capture and RotorHazard peak-history fixes. FPVGate and direct RH share the
+receiver firmware; their complete host timing paths still differ. See
+[release notes](release/RELEASE_NOTES.md) for validation and known limits.
+
 C5MK turns a single ESP32-C5 module into an RF front end that measures up to
 eight FPV video transmitters about 1000 times a second each. It uses the C5's
 own 5 GHz Wi-Fi radio as a receiver: no RX5808 modules, no SPI mods.
@@ -100,7 +105,7 @@ python -m http.server 8000 --directory multipilot/web
 The same firmware serves the dashboard and all timer connections; there is
 no separate USB-only or UART-only firmware.
 
-Install **C5MK 1.2.3** for the fast USB signal stream. Older firmware can
+Install **C5MK 1.2.5** for the current receiver firmware and fast USB signal stream. Older firmware can
 connect, but uses the slower USB scan. Choose Multi Pilot for your board in
 the [FPVGate web flasher](https://fpvgate.xyz/c5.html#flasher).
 `scanmode full` restores the original diagnostic scan; `scanmode fast` is
