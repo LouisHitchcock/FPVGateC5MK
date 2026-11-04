@@ -71,6 +71,20 @@ button.on, .app-nav .current { background: var(--surface-2); border-color: var(-
 .lane.flash { animation: none; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Explainer and FAQ under each tool's connect screen. Plain HTML, so it reads
+   without a receiver and is what search engines index for each page. */
+.about { display: grid; gap: 14px; color: var(--soft); font-size: 15px; line-height: 1.6; }
+.about h2 { font-size: 20px; color: var(--ink); margin: 10px 0 0; }
+.about h3 { font-size: 16px; color: var(--ink); margin: 4px 0 0; }
+.about p, .about ul { margin: 0; color: var(--soft); }
+.about ul { padding-left: 20px; display: grid; gap: 6px; }
+.about details { border-top: 1px solid var(--rule); padding: 12px 0 0; }
+.about summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+.about details p { margin-top: 8px; }
+.about .cols { display: grid; gap: 14px 28px; }
+@media (min-width: 760px) { .about .cols { grid-template-columns: 1fr 1fr; } }
+.tool-links { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
 /* The shared VTX module inserts its CSS dynamically: keep these selectors
    specific enough to apply the same brand after the panel is mounted. */
 .vx .vx-card { border-radius: var(--r-lg); }

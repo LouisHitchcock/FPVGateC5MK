@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<!-- FPVGate C5MK with RotorHazard: a static guide page, the search landing
+     page for using one ESP32-C5 as eight RotorHazard nodes over USB. Facts
+     follow docs/USB_ROTORHAZARD.md; keep the two in step. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111317">
+<title>ESP32-C5 RotorHazard receiver: 8 nodes over USB | FPVGate C5MK</title>
+<meta name="description" content="Use one ESP32-C5 as eight native RotorHazard timer nodes. Plug it into the RotorHazard computer over USB: no RX5808 modules, node board or plugin.">
+<link rel="canonical" href="https://c5mk.fpvgate.xyz/rotorhazard/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="FPVGate C5MK">
+<meta property="og:title" content="ESP32-C5 RotorHazard receiver: 8 nodes over USB">
+<meta property="og:description" content="Use one ESP32-C5 as eight native RotorHazard timer nodes. Plug it into the RotorHazard computer over USB: no RX5808 modules, node board or plugin.">
+<meta property="og:url" content="https://c5mk.fpvgate.xyz/rotorhazard/">
+<meta property="og:image" content="https://c5mk.fpvgate.xyz/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://c5mk.fpvgate.xyz/assets/social-preview.png">
+<link rel="icon" href="../assets/fpvgate-logo.png" type="image/png">
+<style>
+  :root { --bg: #111317; --panel: #191c21; --line: #2a2f37; --text: #eef0f3; --soft: #bfc5ce; --muted: #8a919c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header .title { font-weight: 800; }
+  header .title small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 14px; }
+  main { max-width: 800px; margin: 0 auto; padding: 24px 16px 40px; display: grid; gap: 18px; }
+  h1 { font-size: 32px; margin: 8px 0 0; line-height: 1.15; }
+  .lead { font-size: 18px; color: var(--soft); margin: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 20px; }
+  ol.setup { margin: 0; padding-left: 22px; display: grid; gap: 10px; color: var(--soft); }
+  code { font-family: var(--mono); font-size: .92em; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--text); font-weight: 600; }
+  td { color: var(--soft); }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; }
+  .cta a { display: inline-block; padding: 10px 16px; border: 1px solid var(--line2); border-radius: var(--r); text-decoration: none; }
+  .cta a.primary { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-ink); }
+  @media (max-width: 560px) { header nav { display: none; } h1 { font-size: 26px; } }
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 4px 16px 24px; }
+  footer a { color: var(--soft); }
+</style>
+<link rel="stylesheet" href="../brand.css">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "Which ESP32-C5 boards work with RotorHazard?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Direct USB to RotorHazard is verified on the Waveshare ESP32-C5-Zero. The Seeed Studio XIAO ESP32-C5 runs the same firmware and is tested with FPVGate; its USB connection to RotorHazard is still to be validated."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Do I need a plugin or special RotorHazard version?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. The C5 speaks RotorHazard's standard serial node protocol (node API 36), so a normal RotorHazard install picks it up once the serial port is added."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Has it been raced with a full field?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Not yet. Eight-node discovery and live RSSI are verified, and timing works in local RotorHazard testing. Races with two or more real pilots, and lap accuracy against video, are still to be measured."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Can I use the same receiver without RotorHazard?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes. The same firmware runs the browser lap timer for 1–4 pilots, the live signal dashboard and the VTX check. Only one program can use the USB port at a time, so close RotorHazard first."
+   }
+  }
+ ]
+}
+</script>
+</head>
+<body>
+<header>
+  <img class="brand-logo" src="../assets/fpvgate-logo.png" alt="FPVGate" width="28" height="28">
+  <span class="title">RotorHazard<small>FPVGate C5MK</small></span>
+  <nav aria-label="Receiver tools"><a href="../">Live signals</a><a href="../timer/">Lap timer</a><a href="../vtx/">VTX check</a></nav>
+</header>
+
+<main>
+  <div>
+    <h1>Eight RotorHazard nodes from one ESP32-C5</h1>
+  </div>
+  <p class="lead">C5MK is free firmware that turns an ESP32-C5 into a multi-pilot 5.8&nbsp;GHz receiver. Plug it into the computer running RotorHazard over USB and RH sees eight standard timer nodes, so there's no stack of RX5808 modules, node board, ESP32-S3 or plugin.</p>
+  <p class="cta"><a class="primary" href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">Flash C5MK</a><a href="https://github.com/LouisHitchcock/FPVGateC5MK/blob/main/docs/USB_ROTORHAZARD.md" target="_blank" rel="noopener">Full RotorHazard guide</a><a href="../">Check your signals</a></p>
+
+  <section class="card about">
+    <h2>Set it up</h2>
+    <ol class="setup">
+      <li><b>Flash the firmware.</b> Use the <a href="https://fpvgate.xyz/c5.html#flasher" target="_blank" rel="noopener">C5 flasher</a> and choose Multi Pilot for your board. C5MK 1.2.0 or later is needed; use the latest release.</li>
+      <li><b>Plug it in.</b> Connect the C5's USB port to the RotorHazard computer with a data cable, and fit a 5.8&nbsp;GHz antenna.</li>
+      <li><b>Add the port.</b> In RotorHazard, open <b>Advanced Settings &gt; Hardware &gt; Serial Ports</b>, add the C5's port (<code>COM5</code> on Windows, <code>/dev/ttyACM0</code> or a <code>/dev/serial/by-id/</code> path on Linux) and restart RH.</li>
+      <li><b>Tune.</b> RH finds eight nodes and applies its frequency profile. Assign pilots to seats and calibrate EnterAt and ExitAt in Sensor Tuning. The readings differ from an RX5808's, so calibrate rather than reusing old thresholds.</li>
+      <li><b>Race.</b> The C5 detects each gate crossing and RotorHazard records, announces and saves the laps as usual.</li>
+    </ol>
+  </section>
+
+  <section class="about">
+    <h2>How it compares with RX5808 nodes</h2>
+    <table>
+      <tr><th></th><th>RX5808 nodes</th><th>C5MK on an ESP32-C5</th></tr>
+      <tr><td>Pilots</td><td>One per receiver module</td><td>Up to eight from one board</td></tr>
+      <tr><td>Connection</td><td>Node boards wired to the RH computer</td><td>One USB cable</td></tr>
+      <tr><td>Hardware</td><td>A receiver module and node processor per pilot</td><td>One small board, about 1000 readings a second per pilot</td></tr>
+      <tr><td>Crossing detection</td><td>On the node</td><td>On the C5, timed at the middle of the signal peak</td></tr>
+      <tr><td>Frequencies</td><td>All standard 5.8&nbsp;GHz channels</td><td>5180–5917&nbsp;MHz (Boscam E7 and E8 are out of range)</td></tr>
+      <tr><td>RotorHazard features</td><td>All</td><td>Sensor Tuning, frequency profiles and race management work as with RX5808 nodes</td></tr>
+    </table>
+
+    <h2>Questions</h2>
+    <details>
+      <summary>Which ESP32-C5 boards work with RotorHazard?</summary>
+      <p>Direct USB to RotorHazard is verified on the Waveshare ESP32-C5-Zero. The Seeed Studio XIAO ESP32-C5 runs the same firmware and is tested with FPVGate; its USB connection to RotorHazard is still to be validated.</p>
+    </details>
+    <details>
+      <summary>Do I need a plugin or special RotorHazard version?</summary>
+      <p>No. The C5 speaks RotorHazard's standard serial node protocol (node API 36), so a normal RotorHazard install picks it up once the serial port is added.</p>
+    </details>
+    <details>
+      <summary>Has it been raced with a full field?</summary>
+      <p>Not yet. Eight-node discovery and live RSSI are verified, and timing works in local RotorHazard testing. Races with two or more real pilots, and lap accuracy against video, are still to be measured.</p>
+    </details>
+    <details>
+      <summary>Can I use the same receiver without RotorHazard?</summary>
+      <p>Yes. The same firmware runs the <a href="../timer/">browser lap timer</a> for 1–4 pilots, the <a href="../">live signal dashboard</a> and the <a href="../vtx/">VTX check</a>. Only one program can use the USB port at a time, so close RotorHazard first.</p>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <a href="../">Live signal view</a> · <a href="../timer/">Lap timer</a> · <a href="../vtx/">VTX check</a> · <a href="https://github.com/LouisHitchcock/FPVGateC5MK" target="_blank" rel="noopener">Source</a> · <a href="https://fpvgate.xyz" target="_blank" rel="noopener">fpvgate.xyz</a>
+</footer>
+</body>
+</html>

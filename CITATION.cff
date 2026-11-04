@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use C5MK in research or a publication, please cite it as below."
+title: "FPVGate C5MK: multi-pilot 5.8 GHz RSSI receiver firmware for the ESP32-C5"
+type: software
+authors:
+  - family-names: Hitchcock
+    given-names: Louis
+repository-code: "https://github.com/LouisHitchcock/FPVGateC5MK"
+url: "https://c5mk.fpvgate.xyz"
+license: CC-BY-NC-SA-4.0
+keywords:
+  - FPV
+  - drone racing
+  - lap timing
+  - ESP32-C5
+  - RotorHazard
+  - RSSI
+  - software-defined radio
+preferred-citation:
+  type: report
+  title: "A Single-Receiver, Software-Defined RSSI Front End for Multi-Pilot FPV Race Timing at 1 kHz per Pilot"
+  authors:
+    - family-names: Hitchcock
+      given-names: Louis
+  year: 2026
+  url: "https://github.com/LouisHitchcock/FPVGateC5MK/blob/main/docs/FPVGate_C5MK_Paper.pdf"

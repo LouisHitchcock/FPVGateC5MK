@@ -98,7 +98,9 @@ const server = http.createServer(async(req,res)=>{
       if(fixture) {
         const desktop=fixture.startsWith("desktop");
         const screen=fixture.endsWith("race") ? "run" : fixture.endsWith("results") ? "results" : fixture.endsWith("waiting") ? "waiting" : "setup";
-        source=source.toString().replace("</script>",(fixture==="dashboard" ? dashboardFixture : fixture==="vtx" ? vtxFixture : timerFixture(fixture.endsWith("tuning"),desktop,screen,desktop||screen!=="setup"?4:1))+"\n</script>");
+        const code=fixture==="dashboard" ? dashboardFixture : fixture==="vtx" ? vtxFixture : timerFixture(fixture.endsWith("tuning"),desktop,screen,desktop||screen!=="setup"?4:1);
+        // Inject into the page's first real script, skipping JSON-LD data blocks.
+        source=source.toString().replace(/(<script(?![^>]*ld\+json)[^>]*>[\s\S]*?)<\/script>/,(_,body)=>body+code+"\n</script>");
       }
     }
     const types={".js":"text/javascript",".css":"text/css",".svg":"image/svg+xml",".png":"image/png",".woff2":"font/woff2",".html":"text/html"};
