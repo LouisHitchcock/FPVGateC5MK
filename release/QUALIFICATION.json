@@ -1,0 +1,55 @@
+{
+  "version": "1.2.5",
+  "sourceCommit": "f013863915acda1ca35d7494ae70d5bc7119739f",
+  "softwareTests": {
+    "meterFraming": 60,
+    "node": 1256,
+    "host": 120,
+    "rhUSB": 382,
+    "usbParserScenarios": 11,
+    "browserLapChecks": 37,
+    "timingEstimatorTests": 8,
+    "result": "PASS"
+  },
+  "runtimeComparison": "PASS: receiver runtime sources match 1.2.4-rc.1; version metadata differs.",
+  "newImagePhysicalAcceptance": "not performed; connected boards retained their recorded 1.2.4-rc.1 images for the live endurance run",
+  "equivalentRuntimePhysicalEvidence": {
+    "gateVersion": "1.9.0-rc.2",
+    "boards": [
+      "xiaoc5",
+      "c5zero"
+    ],
+    "linkedOTA": "PASS",
+    "failedTrialRollback": "PASS",
+    "cleanImageRestore": "PASS",
+    "eightDistinctSlots": "PASS, approximately 1037/1033 samples per slot per second, zero error-counter increases over 30 seconds",
+    "manualLapGateSave": "PASS; does not establish RF crossing accuracy"
+  },
+  "remaining": [
+    "Terminal eight-hour endurance results on the exact recorded RC images",
+    "Independent multi-transmitter RF/absolute timing",
+    "Physical power interruption",
+    "Live native USB/RH race acceptance and additional XIAO USB coverage",
+    "Physical smoke of newly labelled 1.2.5 image bytes",
+    "Isolation of gate diagnostic self-test telemetry interference"
+  ],
+  "timingLimit": "FPVGate S3 adds extra EMA; native C5 USB default smoothing differs. End-to-end timings are not guaranteed identical.",
+  "newBuilds": {
+    "c5zero": {
+      "result": "PASS",
+      "chip": "ESP32-C5",
+      "embeddedVersion": "1.2.5+c5zero",
+      "firmwareBytes": 815712,
+      "twoOTAImageSlots": true,
+      "reservedSramClearanceBytes": 6720
+    },
+    "xiaoc5": {
+      "result": "PASS",
+      "chip": "ESP32-C5",
+      "embeddedVersion": "1.2.5+xiaoc5",
+      "firmwareBytes": 815712,
+      "twoOTAImageSlots": true,
+      "reservedSramClearanceBytes": 6720
+    }
+  }
+}
