@@ -12,9 +12,9 @@
 //                                              after every F/G/P/Q, and a heartbeat
 //
 // Scan mode (P): the C5 cycles through the slots itself, one fast retune and
-// one short dump per slot, and sends one binary record per cycle instead of
-// R lines. A record starts with a byte no line contains, so both share the
-// UART:
+// one short dump per distinct frequency, and sends one binary record per
+// cycle instead of R lines. A record starts with a byte no line contains,
+// so both share the UART:
 //   0xA5, len, payload[len], crc8(len, payload)      crc8: poly 0x07, init 0
 //   payload: 'M', seq u8, t0 u32, slot mask u8, then for each slot in the
 //   mask, in slot order: value u16 (bits 0-9 rssi, bit 15 dump failed), dt
@@ -186,6 +186,9 @@ private:
     float alpha_ = 0.3f;
     mp::PilotFilter filt_;
     uint16_t scanMhz_[kMaxSlots] = {};
+    uint8_t scanSource_[kMaxSlots] = {};  // first seat on this frequency
+    bool scanShared_ = false;
+    uint32_t nextScanUs_ = 0;
     uint8_t scanMask_ = 0;
     uint8_t cycleSeq_ = 0;
     mp::PilotFilter scanFilt_[kMaxSlots];

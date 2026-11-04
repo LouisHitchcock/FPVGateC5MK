@@ -419,13 +419,22 @@ void console(char* args) {
         rh.setReject(r);
         hostlink::say("node reject: rise %u ms, hold %u ms, quiet %u ms, margin %u%s\n", r.riseMs, r.holdMs,
                       r.quietMs, r.margin, r.riseMs ? "" : " (off)");
+    } else if (!strcmp(sub, "detect")) {
+        // RH over USB: how long under ExitAt ends a pass, and optional smoothing (see rhusb::Detect).
+        rhusb::Detect d = rh.detect();
+        char* v = rest ? strtok(rest, " ") : nullptr;
+        if (v) d.mergeMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) d.smoothMs = (uint16_t)atoi(v);
+        rh.setDetect(d);
+        hostlink::say("node detect: merge %u ms%s, smooth %u ms%s\n", d.mergeMs, d.mergeMs ? "" : " (off)",
+                      d.smoothMs, d.smoothMs ? "" : " (off)");
     } else if (!strcmp(sub, "cmd") && rest) {
         // Commands as if from the S3 (unframed payloads, ';' between them,
         // handled back to back like F then G on the UART), for bench tests.
         isActive = true;
         for (char* p = strtok(rest, ";"); p; p = strtok(nullptr, ";")) core->handle(p, nowUs());
     } else {
-        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|reject [rise hold quiet margin]|cmd <F,MHz|G,n|Q>]\n");
+        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|reject [rise hold quiet margin]|detect [merge smooth]|cmd <F,MHz|G,n|Q>]\n");
     }
 }
 

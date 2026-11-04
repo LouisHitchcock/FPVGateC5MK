@@ -8,6 +8,11 @@ Open firmware that times up to eight 5.8 GHz drone racing pilots from a single
 board. Use it as native RotorHazard nodes over USB, as FPVGate's multi-pilot
 receiver, or with the free browser lap timer. No RX5808 modules.
 
+Version **1.2.5** promotes the 1.2.4-rc.1 receiver runtime, with shared-frequency
+capture and RotorHazard peak-history fixes. FPVGate and direct RH share the
+receiver firmware; their complete host timing paths still differ. See
+[release notes](release/RELEASE_NOTES.md) for validation and known limits.
+
 [![Latest release](https://img.shields.io/github/v/release/LouisHitchcock/FPVGateC5MK?label=release&color=3987e5)](https://github.com/LouisHitchcock/FPVGateC5MK/releases/latest)
 [![Release date](https://img.shields.io/github/release-date/LouisHitchcock/FPVGateC5MK?label=released)](https://github.com/LouisHitchcock/FPVGateC5MK/releases/latest)
 [![Dashboard](https://img.shields.io/github/actions/workflow/status/LouisHitchcock/FPVGateC5MK/dashboard.yml?branch=main&label=dashboard)](https://c5mk.fpvgate.xyz)

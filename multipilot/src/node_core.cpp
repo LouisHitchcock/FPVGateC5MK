@@ -188,6 +188,7 @@ void Core::handle(const char* p, uint32_t nowUs) {
         needTune_ = needGain_ = false;
         failRun_ = 0;
         for (auto& f : scanFilt_) f.reset();
+        nextScanUs_ = nowUs;
         state_ = scanMask_ ? State::Scan : State::NoFreq;
         status(nowUs);
     } else {
@@ -223,6 +224,18 @@ bool Core::parseSlots(const char* s) {
     }
     memcpy(scanMhz_, mhz, sizeof mhz);
     scanMask_ = mask;
+    scanShared_ = false;
+    for (int i = 0; i < kMaxSlots; ++i) {
+        scanSource_[i] = (uint8_t)i;
+        if (!mhz[i]) continue;
+        for (int j = 0; j < i; ++j) {
+            if (mhz[j] == mhz[i]) {
+                scanSource_[i] = (uint8_t)j;
+                scanShared_ = true;
+                break;
+            }
+        }
+    }
     return true;
 }
 
@@ -342,28 +355,34 @@ void Core::scanCycle(uint32_t nowUs) {
     bool first = true;
     // The USB view only shows the latest value at 50 Hz.
     const bool view = onSample && (cycleSeq_ & (kViewEvery - 1)) == 0;
+    uint16_t values[kMaxSlots] = {};
+    uint32_t times[kMaxSlots] = {};
+    float raw[kMaxSlots] = {}, filtered[kMaxSlots] = {};
     for (int i = 0; i < kMaxSlots; ++i) {
         if (!(scanMask_ & (1u << i))) continue;
-        radio_.hop(scanMhz_[i], gain_);
-        float db = 0;
-        uint32_t t = nowUs;
-        uint16_t value;
-        float f;
-        if (radio_.measure(&db, &t)) {
-            failRun_ = 0;
-            f = scanFilt_[i].push(db, alpha_);
-            value = rssiFromDb(f);
-            ++samples;
-        } else {
-            ++failedDumps;
-            f = scanFilt_[i].value();
-            value = (uint16_t)(kValueFailed | rssiFromDb(f));
-            if (++failRun_ >= kFailsForErrRf * kMaxSlots) {
-                state_ = State::ErrRf;
-                status(nowUs);
-                return;
+        const int source = scanSource_[i];
+        if (source == i) {
+            radio_.hop(scanMhz_[i], gain_);
+            times[i] = nowUs;
+            if (radio_.measure(&raw[i], &times[i])) {
+                failRun_ = 0;
+                filtered[i] = scanFilt_[i].push(raw[i], alpha_);
+                values[i] = rssiFromDb(filtered[i]);
+            } else {
+                ++failedDumps;
+                filtered[i] = scanFilt_[i].value();
+                values[i] = (uint16_t)(kValueFailed | rssiFromDb(filtered[i]));
+                if (++failRun_ >= kFailsForErrRf * kMaxSlots) {
+                    state_ = State::ErrRf;
+                    status(nowUs);
+                    return;
+                }
             }
         }
+        const uint16_t value = values[source];
+        const uint32_t t = times[source];
+        const bool ok = !(value & kValueFailed);
+        if (ok) ++samples;  // logical seat readings, including shared ones
         if (first) t0 = t, first = false;
         uint32_t dt = t - t0;
         if (dt > 0xFFFF) dt = 0xFFFF;
@@ -371,8 +390,8 @@ void Core::scanCycle(uint32_t nowUs) {
         pl[k++] = (uint8_t)(value >> 8);
         pl[k++] = (uint8_t)dt;
         pl[k++] = (uint8_t)(dt >> 8);
-        if (view && !(value & kValueFailed)) onSample(scanMhz_[i], db, f, value, t);
-        if (onScanSample && !(value & kValueFailed)) onScanSample((unsigned)i, value, t);
+        if (view && ok) onSample(scanMhz_[i], raw[source], filtered[source], value, t);
+        if (onScanSample && ok) onScanSample((unsigned)i, value, t);
     }
     pl[0] = (uint8_t)kRecordScan;
     pl[1] = cycleSeq_++;
@@ -392,7 +411,12 @@ void Core::step(uint32_t nowUs) {
         send("u,err,timeout");
         status(nowUs);
     }
-    if (state_ == State::Scan) scanCycle(nowUs);
+    if (state_ == State::Scan && (!scanShared_ || (int32_t)(nowUs - nextScanUs_) >= 0)) {
+        // Sharing captures must not turn a short scan into a UART flood.
+        // Distinct-frequency scans retain their original full-rate schedule.
+        nextScanUs_ = nowUs + kSampleUs;
+        scanCycle(nowUs);
+    }
     bool becameReady = false;
     if (state_ == State::Tuning) {
         if (needTune_) {

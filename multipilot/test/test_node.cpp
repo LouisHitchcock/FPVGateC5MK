@@ -21,6 +21,8 @@ static int checks = 0, fails = 0;
 struct FakeRadio : node::RadioPort {
     int tunedMhz = 0, gain = -1, tunes = 0;
     bool failTune = false, failMeasure = false;
+    int measures = 0;
+    float sampleStepDb = 0;
     float level = 0;
     bool tune(int mhz, int g) override {
         ++tunes;
@@ -40,6 +42,7 @@ struct FakeRadio : node::RadioPort {
         gain = g;
     }
     bool measure(float* db, uint32_t* tUs) override {
+        ++measures;
         clock += 110;   // about one fast hop and dump
         *tUs = clock;
         if (failMeasure) return false;
@@ -47,6 +50,7 @@ struct FakeRadio : node::RadioPort {
         if (useSlotLevel)
             for (int i = 0; i < 8; ++i)
                 if (tunedMhz == 5658 + 37 * i) *db = slotLevel[i];
+        *db += sampleStepDb * measures;
         return true;
     }
     int gainMax() override { return 89; }
@@ -58,6 +62,12 @@ struct Rec {
     uint32_t t0 = 0;
     std::vector<uint16_t> value, dt;
 };
+
+struct TimedSample { unsigned slot; uint16_t value; uint32_t time; };
+static std::vector<TimedSample> timedSamples;
+static void timingSample(unsigned slot, uint16_t value, uint32_t time) {
+    timedSamples.push_back({slot, value, time});
+}
 
 struct FakeIo : node::Io {
     std::vector<std::string> out;   // every line written, without the newline
@@ -381,6 +391,72 @@ int main() {
         g.run(1000000, 1000);
         CHECK(g.countPrefix("S,0,30,SCAN", lines) >= 1);
         for (auto& l : g.io.out) CHECK(Rig::valid(l));
+    }
+
+    // ---- repeated frequencies share one capture, filter and timestamp ----
+    {
+        Rig g;
+        g.radio.sampleStepDb = 2;  // every physical capture is different
+        g.core.onScanSample = timingSample;
+        timedSamples.clear();
+        g.rx(frame("P,0,5658,5695,5658,0,5695,5732,5658"));
+        g.core.step(g.now);
+        CHECK(g.radio.measures == 3 && g.radio.hops.size() == 3);
+        CHECK(g.core.samples == 6 && g.io.badRecs == 0);
+        CHECK(g.io.recs.size() == 1 && g.io.recs[0].mask == 0xEE);
+        const Rec r = g.io.recs[0];
+        CHECK(r.value[0] == r.value[2] && r.value[0] == r.value[5]);
+        CHECK(r.value[1] == r.value[3] && r.value[0] != r.value[1]);
+        CHECK((r.dt == std::vector<uint16_t>{0, 110, 0, 110, 220, 0}));
+        CHECK(timedSamples.size() == 6);
+        const unsigned slots[] = {1, 2, 3, 5, 6, 7};
+        for (unsigned i = 0; i < 6; ++i) {
+            CHECK(timedSamples[i].slot == slots[i]);
+            CHECK(timedSamples[i].value == r.value[i]);
+            CHECK(timedSamples[i].time == r.t0 + r.dt[i]);
+        }
+        g.core.step(g.now += 999);
+        CHECK(g.io.recs.size() == 1);  // shared scans do not flood the UART
+        g.core.step(++g.now);
+        CHECK(g.io.recs.size() == 2 && g.radio.measures == 6);
+        CHECK(g.io.recs.back().value[0] != r.value[0]);  // fresh next cycle
+
+        // A failed shared capture is flagged on every alias, with no callbacks
+        // or retries for aliases. Recovery uses a fresh capture next cycle.
+        g.radio.failMeasure = true;
+        timedSamples.clear();
+        const uint32_t samples = g.core.samples;
+        g.core.step(g.now += 1000);
+        CHECK(g.core.failedDumps == 3 && g.radio.measures == 9);
+        CHECK(g.core.samples == samples && timedSamples.empty());
+        for (uint16_t v : g.io.recs.back().value) CHECK(v & node::kValueFailed);
+        g.radio.failMeasure = false;
+        g.core.step(g.now += 1000);
+        CHECK(timedSamples.size() == 6 && g.core.samples == samples + 6);
+
+        // Reassigning frequencies also resets the canonical filter and schedule.
+        g.radio.sampleStepDb = 0;
+        g.radio.level = 30;
+        g.rx(frame("P,0,5695,5658,5695"));
+        g.core.step(g.now);
+        CHECK(g.io.recs.back().mask == 0x0E);
+        CHECK(g.io.recs.back().value.size() == 3);
+        for (uint16_t v : g.io.recs.back().value) CHECK(v == g.core.rssiFromDb(30));
+        CHECK((g.io.recs.back().dt == std::vector<uint16_t>{0, 110, 0}));
+    }
+    {
+        Rig g;
+        g.now = 0xFFFFFE00u;
+        g.radio.clock = 0xFFFFFFCDu;
+        g.rx(frame("P,5658,5658,5658,5658,5658,5658,5658,5658"));
+        g.core.step(g.now);
+        CHECK(g.radio.measures == 1 && g.core.samples == 8);
+        CHECK(g.io.recs[0].t0 < 110);  // capture clock wrapped
+        for (uint16_t dt : g.io.recs[0].dt) CHECK(dt == 0);
+        g.core.step(g.now += 999);
+        CHECK(g.io.recs.size() == 1);
+        g.core.step(++g.now);
+        CHECK(g.io.recs.size() == 2 && g.radio.measures == 2);
     }
 
     // ---- scan mode: slots off, bad lists, commands mid-cycle, F, G, failures ----

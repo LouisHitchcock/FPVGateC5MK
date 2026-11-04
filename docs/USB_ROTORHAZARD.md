@@ -77,7 +77,14 @@ actually want its extra race seats. The direct C5 does not use the plugin.
 - For RH's RSSI history (Marshal), each poll also reports one extremum of the
   samples since the previous poll, at its own sample times: the peak if it rose
   further from the extremum reported last than the nadir fell, otherwise the
-  nadir. The full 1 kHz trace is not transferred.
+  nadir. The full 1 kHz trace is not transferred. During a crossing, a poll
+  whose samples reach the pass peak always reports that peak, so the history
+  holds the first and last samples at the peak level. Marshal's
+  recalculation times a lap from those, as the live lap is, so with the same
+  EnterAt/ExitAt the two agree to the millisecond. Before this the peak's
+  poll often reported a multipath dip instead and recalculated laps were
+  tens of ms off (up to 142 ms with slow polls in a simulation against RH
+  4.4.0's own client).
 - After any frequency change no crossing starts for 100 ms, and NodePeak and
   NodeNadir ignore those samples: the scan restarts with empty filters, and a
   lone settling sample could otherwise blip the crossing flag or count a pass.
@@ -97,6 +104,20 @@ actually want its extra race seats. The direct C5 does not use the plugin.
   values (`node reject 0` turns it off) until the C5 restarts. On a bench
   recording on 2026-10-16 this dropped 116 of 128 VTX start-up and
   channel-change bursts and no passes.
+- A pass ends only once the level has stayed under ExitAt for 300 ms. A quad
+  passing a gate in a small room dips under ExitAt and back (multipath); back
+  over EnterAt within 300 ms is the same pass, timed at its highest sample, as
+  FPVGate's own lap detection does. Rising only to between ExitAt and EnterAt
+  doesn't rejoin it. The lap count reaches RH 300 ms after the pass, still
+  timed at the peak. A pass already waiting out the 300 ms when the samples
+  stop still counts; RH's force-end drops it, as it drops any crossing. In a
+  whoop hall with 1-unit ExitAt hysteresis, each pass produced up to five
+  extra crossings without this.
+  `node detect [merge smooth]` on the console changes it until the C5
+  restarts: `node detect 0` ends a pass at the first sample under ExitAt, as
+  before. `smooth` (ms, off by default) averages the level over about that
+  long before crossing detection and before RH sees it. That steadies a noisy
+  trace but lowers passes shorter than it on RH's graph, so try it per venue.
 - The crossing flag RH reads stays set for 250 ms after a pass ends. RH reads
   it about every 100 ms and a fast pass can be over EnterAt for less, so
   without this most fast passes never showed as crossings on its graph. Lap

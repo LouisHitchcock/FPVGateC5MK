@@ -247,7 +247,27 @@ static void testGateDetector() {
     CHECK(!g.inside());
 }
 
+static void testSharedFrequencies() {
+    Bench b;
+    const uint16_t slots[8] = {5658, 5695, 5658, 0, 5695, 5732, 5658, 0};
+    CHECK(b.host.setSlots(slots));
+    b.host.begin(b.hostNow());
+    b.run(50);
+    b.got.clear();
+    b.run(200);
+    CHECK(!b.got.empty() && b.got.size() % 6 == 0);
+    for (size_t i = 0; i + 5 < b.got.size(); i += 6) {
+        const auto* s = &b.got[i];
+        CHECK(s[0].slot == 0 && s[1].slot == 1 && s[2].slot == 2);
+        CHECK(s[3].slot == 4 && s[4].slot == 5 && s[5].slot == 6);
+        CHECK(s[0].rssi == s[2].rssi && s[0].rssi == s[5].rssi);
+        CHECK(s[0].timeUs == s[2].timeUs && s[0].timeUs == s[5].timeUs);
+        CHECK(s[1].rssi == s[3].rssi && s[1].timeUs == s[3].timeUs);
+    }
+}
+
 int main() {
+    testSharedFrequencies();
     testStartupAndValues();
     testClockMapping();
     testCorruptRecord();

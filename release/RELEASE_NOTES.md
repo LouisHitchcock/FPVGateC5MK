@@ -1,79 +1,79 @@
-# C5MK 1.2.3: fast USB signals and browser timing
+# C5MK v1.2.5
 
-This release puts the browser USB RSSI stream on the short hop-and-capture
-path already used for FPVGate's eight-pilot timing. The UART link,
-RotorHazard endpoint and partition layout are unchanged from 1.2.2.
+This release promotes the receiver behavior from 1.2.4-rc.1 to version 1.2.5.
+It supports Waveshare ESP32-C5-Zero (`c5zero`) and Seeed XIAO ESP32-C5
+(`xiaoc5`), using one board-specific image for FPVGate UART, native
+RotorHazard USB and browser tools.
 
-## Firmware
+## Changes from stable 1.2.3
 
-- USB scanning defaults to `scanmode fast`, using `noden` (256 samples)
-  and `nodeskip`, instead of the slower diagnostic scan settings.
-- Fast mode measures clipping and gain diagnostics every sixteenth cycle.
-  Other records contain power only: clear diagnostic flags between those
-  cycles do not prove clipping has stopped.
-- Fast mode does not wait for USB buffer space. Slow-host losses increment
-  the existing drop counter instead of slowing the RF scan.
-- `scanmode full` restores the original USB scan, using `n`, `settle`
-  and `tune`, with full diagnostics on every reading. `status` shows the mode.
+- Seats using the same frequency share one RF capture, filtered value and
+  timestamp per scan cycle in UART and USB modes. Per-seat thresholds remain
+  independent.
+- Native RH merges multipath dips into one crossing, preserving peak timing.
+- RH history retains the crossing peak so Marshal recalculation follows live
+  peak timestamps with matching thresholds. Portable tests check agreement
+  within the protocol's millisecond resolution; this is internal consistency,
+  not a claim of millisecond physical RF accuracy.
+- Adds offline receiver-comparison/timing-estimator tools and tests.
 
-Older firmware can connect to the browser tools; install 1.2.3 for the fast
-USB path. Roughly 1000 readings per pilot per second was measured on the
-node scan, not guaranteed for every browser: delivery depends on the USB
-host, settings and pilot count.
+Receiver runtime sources match 1.2.4-rc.1 (`7f7631f`); the firmware version
+changes to 1.2.5. The development raw-RSSI diagnostic changes are excluded.
+No unqualified filtering or estimator replacement is adopted.
 
-## Browser tools
+## FPVGate versus direct RotorHazard
 
-- [Dashboard](https://c5mk.fpvgate.xyz/): eight-pilot traces and peak hold,
-  one large waterfall, expandable RSSI history and optional full-band sweeps.
-  Sweeps pause pilot history and restore channels afterwards; the default
-  live view uses incoming pilot readings without retuning the receiver.
-- [Lap timer](https://c5mk.fpvgate.xyz/timer/): practice/race modes for
-  1-4 pilots, voice, CSV results, optional RSSI graphs and help, and advanced
-  entry/exit levels that can be typed or dragged on touch screens.
-- Mobile-first controls, wider desktop layouts, FPVGate branding and
-  self-hosted fonts, plus connection and troubleshooting guidance.
-- Desktop Chrome/Edge uses Web Serial; Android Chrome uses WebUSB.
-  Physical Android testing is pending. iPhone/iPad USB is not supported.
-
-Website updates deploy separately through GitHub Pages. Until deployment
-finishes, the public site can still show an older interface.
+Both use the same C5 capture/filtering source and shared-frequency behavior.
+FPVGate's S3 applies an additional EMA before detecting peaks; direct C5 USB
+has extra smoothing disabled by default. Host clock handling and timestamp
+resolution also differ. These complete paths are not guaranteed to produce
+identical crossing times. Calibrate each installation's thresholds.
 
 ## Installing
 
-Choose `c5zero` for Waveshare ESP32-C5-Zero or `xiaoc5` for Seeed XIAO
-ESP32-C5. Use [the web flasher](https://fpvgate.xyz/c5.html#flasher), selecting
-Multi Pilot, or download the matching board-prefixed assets below.
-The boards have different UART pins: do not interchange their images.
-
-For a complete USB flash, rename the four files to these unprefixed names
-(or use `release/<board>/` at this tag):
+Use the files for your exact board. For a complete USB flash, place the four
+board-prefixed assets in one directory and run the following, substituting
+`c5zero` or `xiaoc5` for BOARD and your port for PORT:
 
 ```text
-esptool --chip esp32c5 --port <port> --baud 921600 write_flash --flash_mode dio --flash_freq 80m --flash_size 4MB 0x2000 bootloader.bin 0x8000 partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin
+esptool --chip esp32c5 --port PORT --baud 921600 write_flash --flash_mode dio --flash_freq 80m --flash_size 4MB 0x2000 BOARD-bootloader.bin 0x8000 BOARD-partitions.bin 0xf000 BOARD-ota_data_initial.bin 0x20000 BOARD-firmware.bin
 ```
 
-Close RotorHazard, serial monitors and browser USB connections first, then
-unplug/reconnect afterwards. Do not use RotorHazard's STM32 node updater.
-A C5 on 1.1.0 or later can receive `firmware.bin` through FPVGate's C5
-Receiver Firmware page. A C5 on 1.0 or earlier needs the complete USB flash.
-Application-only updates do not update the bootloader: use a complete USB
-flash when upgrading from before 1.2.2 for Linux/Raspberry Pi RotorHazard.
+Close RH, browser USB connections and serial monitors before flashing.
+Firmware 1.1.0 or later supports application-only updates through FPVGate's
+C5 Receiver Firmware page. Use only the matching BOARD-firmware.bin. Earlier
+versions require the complete USB installation. The 1.1.0 partition layout
+is retained. Upgrading a native USB installation from before 1.2.2 should
+include the bootloader. Do not use RH's STM32 node updater.
 
-See [flashing instructions](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.3/release/README.md)
-and [RotorHazard USB setup](https://github.com/LouisHitchcock/FPVGateC5MK/blob/v1.2.3/docs/USB_ROTORHAZARD.md).
+FPVGate gate rc.2 observes the receiver's 60-second trial before reporting
+update completion; older gate versions can report success before a later
+rollback. Preserve settings and a recovery path before updating.
 
-## Validation and limitations
+## Validation and limits
 
-Portable tests pass: 60 meter/framing checks, 1201 node checks, 48 host
-checks, 305 RotorHazard USB checks and eleven USB parser scenarios.
-Browser lap detection, graph, spectrum and transport tests pass. Browser
-layouts were checked from 320 to 1920 pixels with simulated receiver data.
-Both board images build with pinned ESP-IDF 5.5.1 and pass the SRAM guard.
-Release assets include SHA-256 checksums.
+Portable protocol, detector, host and RH tests and both clean production
+builds are recorded in QUALIFICATION.json and SOURCE_MANIFEST.json. Packaged
+images are checked for chip/board/version, partition offsets, two OTA slots,
+image fit, reserved SRAM and SHA-256.
 
-No new physical-device flash or race test was performed for this release.
-Previous Waveshare USB and XIAO UART validation is recorded in the
-[1.2.2 notes](https://github.com/LouisHitchcock/FPVGateC5MK/releases/tag/v1.2.2);
-it is not hardware validation of these binaries. Physical XIAO USB, Android
-USB and multi-pilot race validation remain pending. Check reception,
-thresholds and lap detection before using this release at a race.
+Physical evidence on the equivalent 1.2.4-rc.1 runtime includes linked OTA,
+failed-trial rollback and production-image restoration on both boards,
+automatic gate race saves using manual laps, and about 1037/1033 samples
+per slot per second with eight distinct configured channels. It does not
+constitute physical acceptance of the newly labelled 1.2.5 image bytes.
+
+An eight-hour gate rc.2 plus receiver rc.1 endurance run is still in progress
+at preparation time; results must be read separately. Independent
+multi-transmitter RF/absolute timing, physical power-cut recovery, live
+native USB/RH race acceptance and XIAO USB coverage remain incomplete.
+Earlier native Waveshare discovery/local timing evidence is historical.
+
+Gate hardware self-test concurrent with C5 telemetry produced sequence gaps
+and a bad record on each tested board. It includes flash writes; exact cause
+remains under investigation. Do not run diagnostics while timing races.
+The 15-character receiver version field used by FPVGate supports 1.2.5.
+
+SHA256SUMS.txt covers the board-prefixed release images. Source and build
+provenance accompany the assets. Version 1.2.4 was not released as stable;
+this release follows stable 1.2.3 and prerelease 1.2.4-rc.1.
