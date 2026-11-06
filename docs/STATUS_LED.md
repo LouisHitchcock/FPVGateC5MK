@@ -2,6 +2,9 @@
 
 Added in 1.2.6; the locked 1.2.5 release remains unchanged.
 
+For colours, troubleshooting and text status codes, use the
+[LED and error quick reference](LED_QUICK_REFERENCE.md).
+
 | Waveshare colour | Pattern (also used on XIAO's yellow LED) | Meaning |
 | --- | --- | --- |
 | Amber | Slow pulse (200 ms each second) | Running, no USB host or recent S3 command |

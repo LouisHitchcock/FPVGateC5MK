@@ -286,6 +286,8 @@ Development firmware includes an [onboard status LED](docs/STATUS_LED.md)
 for USB/S3 connection, incoming traffic and radio errors. Use `node led off`
 to disable it until reboot.
 
+See the [LED colours and error quick reference](docs/LED_QUICK_REFERENCE.md).
+
 ## Acknowledgements
 
 Thank you to [C5VRX](https://github.com/Twotoz/C5VRX) (Twotoz and
