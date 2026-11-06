@@ -25,6 +25,7 @@
 #include "meter.h"
 #include "node.h"
 #include "radio.h"
+#include "status_led.h"
 
 using hostlink::say;
 
@@ -811,5 +812,6 @@ void scanTask(void*) {
 
 extern "C" void app_main(void) {
     hostlink::begin();
+    statusled::begin();
     xTaskCreate(scanTask, "scan", 8192, nullptr, 10, nullptr);
 }

@@ -282,6 +282,10 @@ docs/                       documentation and browser screenshots
 release/<board>/            ready-built firmware for the current release
 ```
 
+Development firmware includes an [onboard status LED](docs/STATUS_LED.md)
+for USB/S3 connection, incoming traffic and radio errors. Use `node led off`
+to disable it until reboot.
+
 ## Acknowledgements
 
 Thank you to [C5VRX](https://github.com/Twotoz/C5VRX) (Twotoz and

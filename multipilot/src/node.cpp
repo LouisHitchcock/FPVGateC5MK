@@ -15,6 +15,7 @@
 #include "mbedtls/sha256.h"
 #include "nvs.h"
 #include "rh_usb.h"
+#include "status_led.h"
 
 // The link UART. Its own pins, so no boot or debug text ever reaches the S3.
 // On a XIAO-based FPVGate the link uses the old RX5808 pins, GPIO for GPIO:
@@ -139,6 +140,7 @@ int storedGain = -1;
 ViewSlot view[kViewSlots];
 int viewCount = 0;
 int64_t lastView = 0;
+int64_t lastGateCommand = -3000000;
 uint16_t viewSeq = 0;
 
 uint32_t nowUs() { return (uint32_t)esp_timer_get_time(); }
@@ -203,6 +205,7 @@ bool usbByte(uint8_t byte) {
         textLen = sizeof text - 1;      // too long: not a command until the next '\n'
     }
     rh.feed(byte, nowMs);
+    statusled::activity();
     return true;
 }
 
@@ -329,6 +332,8 @@ void poll() {
         uint32_t before = core->reader.good;
         for (int i = 0; i < n; ++i) core->onByte((char)buf[i], nowUs());
         if (core->reader.good != before) {
+            lastGateCommand = esp_timer_get_time();
+            statusled::activity();
             isActive = true;
             confirmImage();
         }
@@ -342,6 +347,8 @@ void confirmImage() {
 }
 
 void step() {
+    statusled::update(enabled && !rhActive && esp_timer_get_time() - lastGateCommand < 2000000,
+                      core->state() == node::State::ErrRf);
     if (onTrial && esp_timer_get_time() >= kTrialUs) esp_restart();   // back to the previous image
     core->step(nowUs());
     if (core->gain() != storedGain) {
@@ -396,6 +403,9 @@ void console(char* args) {
         enabled = false;
         deactivate();
         hostlink::say("node: ignoring the S3\n");
+    } else if (!strcmp(sub, "led") && rest && (!strcmp(rest, "on") || !strcmp(rest, "off"))) {
+        statusled::enable(!strcmp(rest, "on"));
+        hostlink::say("node led %s (until reboot)\n", rest);
     } else if (!strcmp(sub, "echo")) {
         io.echo = rest && !strcmp(rest, "on");
         hostlink::say("node echo %s\n", io.echo ? "on" : "off");
@@ -434,7 +444,7 @@ void console(char* args) {
         isActive = true;
         for (char* p = strtok(rest, ";"); p; p = strtok(nullptr, ";")) core->handle(p, nowUs());
     } else {
-        hostlink::say("node [on|off|echo on|off|map <dBlo> <dBhi>|alpha A|reject [rise hold quiet margin]|detect [merge smooth]|cmd <F,MHz|G,n|Q>]\n");
+        hostlink::say("node [on|off|led on|off|echo on|off|map <dBlo> <dBhi>|alpha A|reject [rise hold quiet margin]|detect [merge smooth]|cmd <F,MHz|G,n|Q>]\n");
     }
 }
 

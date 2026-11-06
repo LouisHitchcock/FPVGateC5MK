@@ -1,0 +1,153 @@
+{
+  "error": null,
+  "phases": [
+    {
+      "image": "baseline",
+      "mode": "scanner",
+      "seconds": 375.0,
+      "records": 367670,
+      "crc_errors": 0,
+      "junk": 0,
+      "sequence_gaps": 0,
+      "device_drop_delta": 0,
+      "resets": 0,
+      "failed_captures": 0,
+      "clips": 0,
+      "cycle_us": {
+        "count": 367670,
+        "mean": 940.8347403921995,
+        "p50": 926,
+        "p99": 1188,
+        "p999": 1193,
+        "max": 1206
+      },
+      "delivered_sample_gap_us": {
+        "count": 2941352,
+        "mean": 1020.0008924467388,
+        "p50": 994,
+        "p99": 1561,
+        "p999": 1699,
+        "max": 1866
+      }
+    },
+    {
+      "image": "baseline",
+      "mode": "rh_protocol",
+      "seconds": 375.0619999999999,
+      "polls": 3684,
+      "replies": 92103,
+      "checksum_errors": 0,
+      "timeouts": 0,
+      "identity_errors": 0,
+      "uptime_regressions": 0,
+      "reported_loop_us": {
+        "count": 29472,
+        "mean": 973.5342019543974,
+        "p50": 1000,
+        "p99": 1000,
+        "p999": 1000,
+        "max": 1000
+      },
+      "request_latency_us": {
+        "count": 92103,
+        "mean": 883.1959871013973,
+        "p50": 0,
+        "p99": 16000,
+        "p999": 16000,
+        "max": 16000
+      },
+      "observed_rssi": {
+        "31": 1,
+        "32": 1,
+        "36": 10754,
+        "33": 5,
+        "35": 16022,
+        "38": 39,
+        "34": 1483,
+        "37": 1136,
+        "50": 4,
+        "45": 4,
+        "43": 4,
+        "42": 9,
+        "46": 2,
+        "40": 3,
+        "63": 3,
+        "47": 2
+      }
+    },
+    {
+      "image": "led",
+      "mode": "scanner",
+      "seconds": 375.0,
+      "records": 367659,
+      "crc_errors": 0,
+      "junk": 0,
+      "sequence_gaps": 0,
+      "device_drop_delta": 0,
+      "resets": 0,
+      "failed_captures": 0,
+      "clips": 0,
+      "cycle_us": {
+        "count": 367659,
+        "mean": 942.5090722653329,
+        "p50": 927,
+        "p99": 1190,
+        "p999": 1194,
+        "max": 1208
+      },
+      "delivered_sample_gap_us": {
+        "count": 2941264,
+        "mean": 1020.0000537184013,
+        "p50": 996,
+        "p99": 1433,
+        "p999": 1570,
+        "max": 1754
+      }
+    },
+    {
+      "image": "led",
+      "mode": "rh_protocol",
+      "seconds": 375.0619999999999,
+      "polls": 3838,
+      "replies": 95953,
+      "checksum_errors": 0,
+      "timeouts": 0,
+      "identity_errors": 0,
+      "uptime_regressions": 0,
+      "reported_loop_us": {
+        "count": 30704,
+        "mean": 979.3837936425222,
+        "p50": 1000,
+        "p99": 1000,
+        "p999": 1000,
+        "max": 2000
+      },
+      "request_latency_us": {
+        "count": 95953,
+        "mean": 1051.5981782747804,
+        "p50": 0,
+        "p99": 16000,
+        "p999": 16000,
+        "max": 16000
+      },
+      "observed_rssi": {
+        "33": 1,
+        "34": 389,
+        "36": 15474,
+        "39": 27,
+        "35": 8746,
+        "38": 521,
+        "37": 5526,
+        "47": 3,
+        "50": 2,
+        "51": 2,
+        "55": 3,
+        "46": 3,
+        "49": 5,
+        "54": 2
+      }
+    }
+  ],
+  "test_seconds": 1500.1239999999998,
+  "limitation": "No controlled RF input; RH wire polling, not full RH server; sample-loop snapshots are not a full RF capture trace."
+}
