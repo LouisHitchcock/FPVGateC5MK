@@ -1,6 +1,6 @@
 {
-  "version": "1.2.5",
-  "sourceCommit": "f013863915acda1ca35d7494ae70d5bc7119739f",
+  "version": "1.2.6",
+  "sourceCommit": "b1ce8567a72864b98de15bd12e5a67505a3a5672",
   "softwareTests": {
     "meterFraming": 60,
     "node": 1256,
@@ -9,47 +9,52 @@
     "usbParserScenarios": 11,
     "browserLapChecks": 37,
     "timingEstimatorTests": 8,
+    "statusLedPatternsAndColours": "PASS",
     "result": "PASS"
   },
-  "runtimeComparison": "PASS: receiver runtime sources match 1.2.4-rc.1; version metadata differs.",
-  "newImagePhysicalAcceptance": "not performed; connected boards retained their recorded 1.2.4-rc.1 images for the live endurance run",
-  "equivalentRuntimePhysicalEvidence": {
-    "gateVersion": "1.9.0-rc.2",
-    "boards": [
-      "xiaoc5",
-      "c5zero"
-    ],
-    "linkedOTA": "PASS",
-    "failedTrialRollback": "PASS",
-    "cleanImageRestore": "PASS",
-    "eightDistinctSlots": "PASS, approximately 1037/1033 samples per slot per second, zero error-counter increases over 30 seconds",
-    "manualLapGateSave": "PASS; does not establish RF crossing accuracy"
-  },
-  "remaining": [
-    "Terminal eight-hour endurance results on the exact recorded RC images",
-    "Independent multi-transmitter RF/absolute timing",
-    "Physical power interruption",
-    "Live native USB/RH race acceptance and additional XIAO USB coverage",
-    "Physical smoke of newly labelled 1.2.5 image bytes",
-    "Isolation of gate diagnostic self-test telemetry interference"
-  ],
-  "timingLimit": "FPVGate S3 adds extra EMA; native C5 USB default smoothing differs. End-to-end timings are not guaranteed identical.",
   "newBuilds": {
     "c5zero": {
       "result": "PASS",
       "chip": "ESP32-C5",
-      "embeddedVersion": "1.2.5+c5zero",
-      "firmwareBytes": 815712,
+      "embeddedVersion": "1.2.6+c5zero",
+      "firmwareBytes": 830752,
       "twoOTAImageSlots": true,
-      "reservedSramClearanceBytes": 6720
+      "reservedSramClearanceBytes": 2656
     },
     "xiaoc5": {
       "result": "PASS",
       "chip": "ESP32-C5",
-      "embeddedVersion": "1.2.5+xiaoc5",
-      "firmwareBytes": 815712,
+      "embeddedVersion": "1.2.6+xiaoc5",
+      "firmwareBytes": 817984,
       "twoOTAImageSlots": true,
-      "reservedSramClearanceBytes": 6720
+      "reservedSramClearanceBytes": 6576
     }
-  }
+  },
+  "physicalAcceptance": {
+    "board": "c5zero",
+    "testedVersion": "1.2.6-led.1",
+    "baseline": "1.2.5",
+    "durationSeconds": 1500.124,
+    "result": "PASS for tested scanner/RH wire-protocol workload",
+    "benchReport": "docs/STATUS_LED_BENCH_20261106.md",
+    "summary": "docs/validation/status-led-20261106.json",
+    "scannerMeanCycleOverheadPercent": 0.178,
+    "rhScanThroughputReductionPercent": 0.4,
+    "scannerMeanDeliveredSampleIntervalUs": 1020,
+    "captureFailures": 0,
+    "scannerDrops": 0,
+    "transportErrors": 0,
+    "rhTimeouts": 0,
+    "releaseLabelledImageSmoke": "PASS: flashed exact 1.2.6+c5zero release image, boot/radio live checks, 9907 scanner records in 10 seconds with zero new drops/CRC errors/failed captures; 27 valid RH replies covering all eight seats and frequencies.",
+    "releaseLabelledImageSmokeReport": "docs/validation/status-led-1.2.6-smoke.json"
+  },
+  "remaining": [
+    "Controlled RF sensitivity and absolute crossing timing",
+    "Full RH race/server acceptance",
+    "Physical XIAO LED/cable tests",
+    "S3 LED interaction",
+    "Error-pattern injection",
+    "Power-only cable, suspend/resume and repeated power-cycle tests"
+  ],
+  "limits": "Low overhead, not zero overhead. Physical bench tested development version; final images rebuilt from isolated v1.2.5-based source. No new RF tuning/filtering/protocol changes."
 }

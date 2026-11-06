@@ -1,10 +1,10 @@
-﻿# C5MK 1.2.5 installation
+﻿# C5MK 1.2.6 installation
 
 Choose c5zero for Waveshare ESP32-C5-Zero, or xiaoc5 for Seeed XIAO ESP32-C5. Each image embeds its board identity; link pins differ.
 
 ## Update through FPVGate
 
-For an existing C5 firmware 1.1.0 or later with compatible two-slot partitions, open FPVGate Settings > System > C5 Receiver Firmware and select the matching `<board>-firmware.bin`. Only the application goes over UART. Confirm receiver returns online with version 1.2.5 and the expected board.
+For an existing C5 firmware 1.1.0 or later with compatible two-slot partitions, open FPVGate Settings > System > C5 Receiver Firmware and select the matching `<board>-firmware.bin`. Only the application goes over UART. Confirm receiver returns online with version 1.2.6 and the expected board.
 
 ## First USB installation
 
@@ -26,6 +26,6 @@ No erase-all is required. Existing NVS calibration occupies 0x9000-0xefff. Firmw
 
 ## Verification and recovery
 
-Check SHA256SUMS.txt before flashing. After boot confirm board/version in FPVGate receiver status, live RSSI, all configured channels and a test race. Power-cycle acceptance must be recorded separately. An unconfirmed gate-linked OTA trial is designed to roll back after 60 seconds without its host; physical rollback has passed on the equivalent RC runtime; newly labelled image-byte smoke remains pending. If recovery is needed, use BOOT and USB to flash the previously qualified matching-board package.
+Check SHA256SUMS.txt before flashing. After boot confirm board/version in FPVGate receiver status, live RSSI, all configured channels and a test race. Power-cycle acceptance must be recorded separately. An unconfirmed gate-linked OTA trial is designed to roll back after 60 seconds without its host; physical rollback has passed on the equivalent RC runtime; LED runtime passed the Waveshare A/B bench test; release-labelled image and XIAO physical smoke are recorded separately in QUALIFICATION.json. If recovery is needed, use BOOT and USB to flash the previously qualified matching-board package.
 
 Read QUALIFICATION.json and RELEASE_NOTES.md for validation scope and remaining hardware limits.

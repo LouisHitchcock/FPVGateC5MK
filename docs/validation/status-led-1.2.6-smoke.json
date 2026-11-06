@@ -1,0 +1,13 @@
+{
+  "result": "PASS",
+  "version": "1.2.6+c5zero",
+  "scannerSeconds": 10,
+  "records": 9907,
+  "scannerDrops": 0,
+  "crcErrors": 0,
+  "failedCaptures": 0,
+  "rhValidReplies": 27,
+  "eightSeatIdentityAndFrequency": "PASS",
+  "status": "pilots 5658,5695,5732,5769,5806,5843,5880,5917\ngain 30 (max 89)  offset 10 MHz  n 2048  settle 25 us  alpha 0.30\nscanmode fast  tune pll  dump direct  bw 1  scan off  rxon 0\ndumps stock 3 direct 314336 timeouts 0 incomplete 0  drops 25214  cycle 1201 us\nwifi=1 gainmax=89 xtalsel=3 trim=0\nplain: complete=1 db=-1.73 dc=-6.98/35.62 gainfield=30 (bad 0) -> live\ntxoff: complete=1 db=-1.50 dc=-6.44/35.89 gainfield=30 (bad 0) -> live\nnode idle: ERR_FREQ 0 MHz gain 30  map -10.0..53.8 dB  uart tx 5 rx 4\n  lines ok 0 bad 0 long 0  cmds 2 rejected 0  samples 216 stale-dropped 0 failed 0  status 47\n  scan mask 00  cycles 27 aborted 0\n  firmware 1.2.6+c5zero  update chunks 0 bad 0\n",
+  "dropMeasurement": "Delta during continuous 10-second capture; the cumulative counter also includes periods with no USB reader."
+}
