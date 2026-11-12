@@ -7,6 +7,7 @@
 
 #include "driver/uart.h"
 #include "esp_app_desc.h"
+#include "esp_heap_caps.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -435,9 +436,17 @@ void console(char* args) {
         char* v = rest ? strtok(rest, " ") : nullptr;
         if (v) d.mergeMs = (uint16_t)atoi(v);
         if (v && (v = strtok(nullptr, " "))) d.smoothMs = (uint16_t)atoi(v);
+        if (v && (v = strtok(nullptr, " "))) d.medianMs = (uint16_t)atoi(v);
         rh.setDetect(d);
-        hostlink::say("node detect: merge %u ms%s, smooth %u ms%s\n", d.mergeMs, d.mergeMs ? "" : " (off)",
-                      d.smoothMs, d.smoothMs ? "" : " (off)");
+        d = rh.detect();
+        hostlink::say("node detect: merge %u ms%s, smooth %u ms%s, median %u ms%s\n", d.mergeMs, d.mergeMs ? "" : " (off)",
+                      d.smoothMs, d.smoothMs ? "" : " (off)", d.medianMs,
+                      !d.medianMs ? " (off)" : rh.medianActive() ? "" : " (no memory: off)");
+        hostlink::say("node filter: required %u bytes, active %u, heap free %u low %u largest %u\n",
+                      (unsigned)(sizeof(rhusb::RssiFilter) * rhusb::kSeats), rh.medianActive() ? 1u : 0u,
+                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                      (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     } else if (!strcmp(sub, "cmd") && rest) {
         // Commands as if from the S3 (unframed payloads, ';' between them,
         // handled back to back like F then G on the UART), for bench tests.

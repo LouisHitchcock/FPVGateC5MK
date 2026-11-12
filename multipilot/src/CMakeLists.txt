@@ -6,7 +6,7 @@ idf_component_register(
 
 # Per-board FPVGate link pins (platformio.ini board_build.cmake_extra_args);
 # PlatformIO's build_flags don't reach these sources in an ESP-IDF build.
-foreach(pin NODE_UART_TX_PIN NODE_UART_RX_PIN)
+foreach(pin NODE_UART_TX_PIN NODE_UART_RX_PIN C5_RH_MEDIAN_MS)
     if(DEFINED ${pin})
         target_compile_definitions(${COMPONENT_LIB} PRIVATE ${pin}=${${pin}})
     endif()

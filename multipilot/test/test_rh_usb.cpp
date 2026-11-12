@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "rh_usb.h"
 
 #include <stdio.h>
@@ -501,6 +502,125 @@ int bridge() {
     return 0;
 }
 
+// Detect::medianMs: one filtered level per ms, time-aligned to the window's middle.
+void medianTests() {
+    rhusb::RunningMedian m;
+    uint8_t level = 50;
+    uint32_t t = 1000;
+    CHECK(!m.push(level, t, 5));  // not filled yet
+    int filled = 0;
+    for (uint32_t ms = 1001; ms < 1020; ++ms) {
+        level = 50;
+        t = ms;
+        if (m.push(level, t, 5)) {
+            ++filled;
+            CHECK(level == 50);
+            CHECK(ms - t == 2);  // five samples: the middle one is 2 ms back
+        }
+    }
+    CHECK(filled > 0);
+    // A same-millisecond sample does not enter the window.
+    level = 200;
+    t = 1019;
+    CHECK(!m.push(level, t, 5));
+    // A spike shorter than half the window never reaches the output.
+    bool spike = false;
+    for (uint32_t ms = 1020; ms < 1040; ++ms) {
+        level = ms >= 1025 && ms < 1027 ? 200 : 50;
+        t = ms;
+        if (m.push(level, t, 5) && level != 50) spike = true;
+    }
+    CHECK(!spike);
+    // A step passes through, at its true time.
+    uint32_t stepOut = 0;
+    for (uint32_t ms = 1040; ms < 1060 && !stepOut; ++ms) {
+        level = ms >= 1045 ? 180 : 50;
+        t = ms;
+        if (m.push(level, t, 5) && level == 180) stepOut = t;
+    }
+    CHECK(stepOut >= 1045 && stepOut <= 1046);
+    // Matches a sorted median over a noisy stream, at the longest window.
+    rhusb::RunningMedian big;
+    uint32_t seed = 12345;
+    uint8_t history[255] = {};
+    bool same = true;
+    unsigned bigOutputs = 0;
+    bool bigTiming = true;
+    for (uint32_t ms = 0; ms < 3000; ++ms) {
+        seed = seed * 1103515245u + 12345u;
+        uint8_t in = (uint8_t)(1 + (seed >> 16) % 254);
+        history[ms % 255] = in;
+        level = in;
+        t = 65500 + ms;  // also cross the median ring's 16-bit timestamp wrap
+        if (big.push(level, t, 255)) {
+            ++bigOutputs;
+            if (ms < 255 || t != 65500 + ms - 127) bigTiming = false;
+            uint8_t sorted[255];
+            memcpy(sorted, history, sizeof sorted);
+            std::sort(sorted, sorted + 255);
+            if (level != sorted[127]) same = false;
+        }
+    }
+    CHECK(same);
+    CHECK(bigOutputs == 3000 - 255);
+    CHECK(bigTiming);
+
+    rhusb::RunningMedian wrapping;
+    unsigned wrapOutputs = 0;
+    bool wrapTiming = true;
+    for (uint32_t ms = 0; ms < 30; ++ms) {
+        const uint32_t now = 0xFFFFFFF0u + ms;
+        level = 50;
+        t = now;
+        if (wrapping.push(level, t, 5)) {
+            ++wrapOutputs;
+            if (level != 50 || now - t != 2) wrapTiming = false;
+        }
+    }
+    CHECK(wrapOutputs == 25);
+    CHECK(wrapTiming);
+
+    // Through the core: detection and history use the median, RH's age is the middle time.
+    Port port;
+    rhusb::Core core(port);
+    rhusb::Detect d;
+    d.mergeMs = 0;
+    d.medianMs = 11;
+    core.setDetect(d);
+    core.begin(0);
+    CHECK(core.medianActive());
+    write(core, rhusb::WRITE_CURNODE_INDEX, {0}, 0);
+    write(core, rhusb::WRITE_ENTER_AT_LEVEL, {120}, 0);
+    write(core, rhusb::WRITE_EXIT_AT_LEVEL, {100}, 0);
+    uint32_t ms = 200;
+    for (; ms < 400; ++ms) core.sample(0, 50 * 4, ms);
+    for (int i = 0; i < 3; ++i) core.sample(0, 200 * 4, ms++);  // too short to pass the median
+    for (int i = 0; i < 100; ++i) core.sample(0, 50 * 4, ms++);
+    port.bytes.clear();
+    core.feed(rhusb::READ_LAP_STATS, ms);
+    CHECK(!port.bytes.empty() && port.bytes[0] == 0);  // the spike was no pass
+    for (int i = 0; i < 200; ++i) core.sample(0, 200 * 4, ms++);  // outlasts jump rejection's hold
+    uint32_t risingEnd = ms;
+    for (int i = 0; i < 100; ++i) core.sample(0, 50 * 4, ms++);
+    port.bytes.clear();
+    core.feed(rhusb::READ_LAP_STATS, ms);
+    CHECK(port.bytes.size() >= 3 && port.bytes[0] == 1);
+    uint32_t age = (uint32_t)port.bytes[1] << 8 | port.bytes[2];
+    uint32_t passMs = ms - age;
+    CHECK(passMs >= risingEnd - 110 && passMs <= risingEnd - 90);  // the plateau's middle, not delayed
+
+    // Off is off: no allocation and no filtering.
+    rhusb::Core plain(port);
+    rhusb::Detect off;
+    plain.setDetect(off);
+    CHECK(!plain.medianActive());
+    // A window over the limit is clamped.
+    rhusb::Detect wide;
+    wide.medianMs = 1000;
+    plain.setDetect(wide);
+    CHECK(plain.detect().medianMs == rhusb::RunningMedian::kMaxWindowMs);
+}
+
 int main(int argc, char** argv) {
     if (argc > 1 && !strcmp(argv[1], "--bridge")) return bridge();
     tests();
@@ -510,6 +630,7 @@ int main(int argc, char** argv) {
     lowEnterTests();
     mergeTests();
     smoothTests();
+    medianTests();
     printf("RH USB: %d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;
 }

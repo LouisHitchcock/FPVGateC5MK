@@ -1,5 +1,6 @@
 #include "rh_usb.h"
 
+#include <new>
 #include <string.h>
 
 namespace rhusb {
@@ -23,6 +24,7 @@ bool tuned(uint16_t mhz) { return mhz >= 5180 && mhz <= 5917; }
 
 void Core::begin(uint32_t nowMs) {
     selected_ = command_ = needed_ = received_ = 0;
+    if (detect_.medianMs && !medians_) medians_ = new (std::nothrow) RssiFilter[kSeats];
     lastCommandMs_ = lastByteMs_ = nowMs;
     for (auto& seat : seats_) seat = Seat{};
     const uint16_t raceband[kSeats] = {5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917};
@@ -40,6 +42,19 @@ void Core::settleAll(uint32_t nowMs) {
         seat.quiet = seat.quietSeen = seat.smoothed = false;
         seat.settleUntilMs = nowMs + kSettleMs;
     }
+    resetMedians();
+}
+
+void Core::resetMedians() {
+    if (!medians_) return;
+    for (unsigned i = 0; i < kSeats; ++i) medians_[i].reset();
+}
+
+void Core::setDetect(const Detect& detect) {
+    detect_ = detect;
+    if (detect_.medianMs > RunningMedian::kMaxWindowMs) detect_.medianMs = RunningMedian::kMaxWindowMs;
+    if (detect_.medianMs && !medians_) medians_ = new (std::nothrow) RssiFilter[kSeats];
+    resetMedians();
 }
 
 uint8_t Core::shownRssi(const Seat& seat, uint32_t nowMs) {
@@ -111,7 +126,8 @@ void Core::latchStats(uint32_t nowMs) {
     put16(stats_ + 1, boundedAge(nowMs, seat.passMs));
     // RH's current RSSI (its live graph and Capture): the rolling maximum,
     // or 1 once the samples have stopped.
-    stats_[3] = stale ? 1 : shownRssi(seat, nowMs);
+    // The median is steady and already carries each pass: no rolling maximum.
+    stats_[3] = stale ? 1 : medianActive() ? seat.rssi : shownRssi(seat, nowMs);
     stats_[4] = seat.peak;
     stats_[5] = seat.passPeak;
     put16(stats_ + 6, seat.loopUs);
@@ -229,6 +245,7 @@ void Core::sample(unsigned index, uint16_t rawRssi, uint32_t sampleMs) {
             finishEnding(seat, seat.sampleMs);
             stopCrossing(seat);
             seat.quiet = seat.smoothed = false;
+            if (medians_) medians_[index].reset();
         }
     }
     seat.sampled = true;
@@ -245,6 +262,13 @@ void Core::sample(unsigned index, uint16_t rawRssi, uint32_t sampleMs) {
         level = (uint8_t)(seat.smooth + 0.5f);
     } else {
         seat.smoothed = false;
+    }
+    // From here on the level is the median's and the time its middle sample's;
+    // seat.sampleMs stays the arrival time, for the stale and gap checks.
+    if (medianActive()) {
+        uint16_t full = detect_.smoothMs ? (uint16_t)level * 4u : rawRssi;
+        if (!medians_[index].push(full, sampleMs, detect_.medianMs)) return;
+        level = (uint8_t)(full / 4u);
     }
     // Settling after a frequency change: shown, but not a pass or a node peak.
     if ((int32_t)(sampleMs - seat.settleUntilMs) < 0) {
@@ -299,45 +323,9 @@ void Core::show(Seat& seat, uint8_t level, uint32_t firstMs, uint32_t lastMs) {
 
 void Core::detect(Seat& seat, uint8_t level, uint32_t sampleMs) {
     if (level < seat.nadir) seat.nadir = level;
-    bool floor = level <= seat.nadir + reject_.margin;
-    // A jump: off a floor held for quietMs to twice the margin above it, or to
-    // EnterAt if that is lower, within riseMs.
-    int jumpLevel = seat.nadir + 2 * reject_.margin;
-    if (seat.enter < jumpLevel) jumpLevel = seat.enter;
-    if (!seat.jumping && !floor && reject_.riseMs && seat.quietSeen &&
-        seat.quietLastMs - seat.quietStartMs >= reject_.quietMs &&
-        sampleMs - seat.quietLastMs <= reject_.riseMs && level >= jumpLevel) {
-        seat.jumping = true;
-        seat.jumpDropped = false;
-        seat.jumpUntilMs = sampleMs + reject_.holdMs;
-        seat.jumpMax = 0;
-    }
-    if (floor) {
-        if (!seat.quiet) seat.quietStartMs = sampleMs;
-        seat.quiet = seat.quietSeen = true;
-        seat.quietLastMs = sampleMs;
-    } else {
-        seat.quiet = false;
-    }
-    if (seat.jumping) {
-        if (level > seat.jumpMax) {
-            seat.jumpMax = level;
-            seat.jumpFirstMs = seat.jumpLastMs = sampleMs;
-        } else if (level == seat.jumpMax) {
-            seat.jumpLastMs = sampleMs;
-        }
-        if (floor) {
-            // Back on the floor within holdMs: a VTX starting up or changing
-            // channel. RH never sees it, not even on its graph.
-            seat.jumping = false;
-        } else if ((int32_t)(sampleMs - seat.jumpUntilMs) >= 0) {
-            // It lasted: a real signal. Show its peak, held back until now.
-            seat.jumping = false;
-            if (!seat.jumpDropped) {
-                show(seat, seat.jumpMax, seat.jumpFirstMs, seat.jumpLastMs);
-                if (seat.jumpMax > seat.peak) seat.peak = seat.jumpMax;
-            }
-        }
+    if (advanceJump(seat, level, sampleMs, seat.enter, reject_)) {
+        show(seat, seat.jumpMax, seat.jumpFirstMs, seat.jumpLastMs);
+        if (seat.jumpMax > seat.peak) seat.peak = seat.jumpMax;
     }
     if (seat.enter <= seat.exit) { stopCrossing(seat); return; }
     if (!seat.crossing && !seat.held) {

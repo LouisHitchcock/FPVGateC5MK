@@ -1,3 +1,5 @@
+> Testing prerelease: [C5MK 1.3.0-pre-1](release/v1.3.0-pre-1/RELEASE_NOTES.md). Shared USB/UART 95 ms median; USB soak not passed and real-video qualification pending. Stable remains 1.2.6.
+
 # FPVGate C5MK
 
 Multi-pilot 5.8 GHz RSSI receiver firmware for the ESP32-C5.

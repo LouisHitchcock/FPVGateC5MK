@@ -2,6 +2,7 @@
 // prints the laps RH would record. Used by tools/rh_db_report.py --replay.
 //
 // stdin:  "enter <level> exit <level> merge <ms> smooth <ms>" on the first line,
+//         optionally followed by "median <ms>",
 //         then one "<ms> <level 1-254>" per line, in time order.
 // stdout: one "lap <pass ms> <pass peak level>" per lap.
 #include "rh_usb.h"
@@ -35,12 +36,15 @@ int main() {
         fprintf(stderr, "first line: enter <level> exit <level> merge <ms> smooth <ms>\n");
         return 2;
     }
+    unsigned median = 0;
+    if (scanf(" median %u", &median) != 1) median = 0;
     Port port;
     rhusb::Core core(port);
     core.begin(0);
     rhusb::Detect detect;
     detect.mergeMs = (uint16_t)merge;
     detect.smoothMs = (uint16_t)smooth;
+    detect.medianMs = (uint16_t)median;
     core.setDetect(detect);
     write(core, rhusb::WRITE_CURNODE_INDEX, 0, 0);
     write(core, rhusb::WRITE_ENTER_AT_LEVEL, (uint8_t)enter, 0);

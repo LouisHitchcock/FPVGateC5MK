@@ -5,6 +5,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "rssi_filter.h"
+#include "jump_reject.h"
+
+// Median window of an opt-in build; 0 (the default) keeps released behaviour.
+#ifndef C5_RH_MEDIAN_MS
+#define C5_RH_MEDIAN_MS 0
+#endif
+
 namespace rhusb {
 
 constexpr unsigned kSeats = 8;
@@ -26,12 +34,7 @@ constexpr uint32_t kShowCrossingMs = 250;
 // hidden from RH (RSSI, history, NodePeak and crossing) for holdMs and dropped
 // if it falls back sooner; one that lasts is shown and counts as usual, a
 // crossing timed from its peak like any other.
-struct Reject {
-    uint16_t riseMs = 30;    // left the floor no longer ago than this: a jump
-    uint16_t holdMs = 90;    // a jump that ends sooner is not a pass
-    uint16_t quietMs = 100;  // the floor must have held this long before the jump
-    uint8_t margin = 16;     // "the floor": within this of the seat's nadir (~4 dB)
-};
+
 
 // A quad passing a gate in a small room dips under ExitAt and back for a few
 // hundred ms (multipath). A pass therefore ends only once the level has stayed
@@ -43,6 +46,10 @@ struct Reject {
 struct Detect {
     uint16_t mergeMs = 300;  // 0: a pass ends at the first sample under ExitAt
     uint16_t smoothMs = 0;   // 0: off
+    // Running median of the level over this long, ahead of crossing detection,
+    // RH's RSSI and its history, so live and recalculated laps see one signal.
+    // 0: off; at most RunningMedian::kMaxWindowMs.
+    uint16_t medianMs = C5_RH_MEDIAN_MS;
 };
 
 // Command IDs and byte order follow RotorHazard's src/interface/RHInterface.py.
@@ -68,6 +75,9 @@ public:
 class Core {
 public:
     explicit Core(Port& port) : port_(port) {}
+    ~Core() { delete[] medians_; }
+    Core(const Core&) = delete;
+    Core& operator=(const Core&) = delete;
     void begin(uint32_t nowMs);
     void end();
     // Call only after claiming the radio. First byte must be READ_REVISION_CODE.
@@ -78,7 +88,9 @@ public:
     // 0 for riseMs turns the rejection off.
     void setReject(const Reject& reject) { reject_ = reject; }
     const Reject& reject() const { return reject_; }
-    void setDetect(const Detect& detect) { detect_ = detect; }
+    void setDetect(const Detect& detect);
+    // False while no median runs: off, or its memory could not be allocated.
+    bool medianActive() const { return medians_ && detect_.medianMs; }
     const Detect& detect() const { return detect_; }
 
 private:
@@ -124,6 +136,8 @@ private:
     Port& port_;
     Reject reject_;
     Detect detect_;
+    RssiFilter* medians_ = nullptr;  // one per seat; on the heap, static RAM is tight
+    void resetMedians();
     uint8_t selected_ = 0, command_ = 0, needed_ = 0, received_ = 0;
     uint8_t input_[3] = {}, stats_[16] = {};
     uint32_t lastByteMs_ = 0, lastCommandMs_ = 0;
