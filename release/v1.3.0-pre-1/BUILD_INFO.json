@@ -1,0 +1,136 @@
+{
+  "release": "v1.3.0-pre-1",
+  "sourceCommit": "8fbd4078f508d1c96af3394522b325039c320249",
+  "stableBaseCommit": "3265b8e3a564af0f266f6d93ed9fda240a8aee28",
+  "platform": "pioarduino espressif32 55.03.35",
+  "framework": "ESP-IDF 5.5.1",
+  "build": "local PlatformIO; all three targets passed with SRAM guards",
+  "rcSourceAudit": {
+    "unchangedRcImplementationFiles": 28,
+    "allowedVersionEdits": [
+      "multipilot/platformio.ini",
+      "multipilot/CMakeLists.txt"
+    ],
+    "originalRcSourceSha256": "63b388770b1d91824a0ad6ae00df27bf6cf6940a1b0b7d4448a2c2b708e83ef1"
+  },
+  "boards": [
+    {
+      "environment": "xiaoc5",
+      "appVersion": "1.3.0-pre-1+xiaoc5",
+      "appBytes": 819968,
+      "appPartitionBytes": 1966080,
+      "partitions": [
+        {
+          "type": 1,
+          "subtype": 2,
+          "offset": 36864,
+          "size": 24576
+        },
+        {
+          "type": 1,
+          "subtype": 0,
+          "offset": 61440,
+          "size": 8192
+        },
+        {
+          "type": 1,
+          "subtype": 1,
+          "offset": 69632,
+          "size": 4096
+        },
+        {
+          "type": 0,
+          "subtype": 16,
+          "offset": 131072,
+          "size": 1966080
+        },
+        {
+          "type": 0,
+          "subtype": 17,
+          "offset": 2097152,
+          "size": 1966080
+        }
+      ],
+      "hardwareQualification": "not qualified; version-only rebuild of the previously tested RC source"
+    },
+    {
+      "environment": "c5zero",
+      "appVersion": "1.3.0-pre-1+c5zero",
+      "appBytes": 832736,
+      "appPartitionBytes": 1966080,
+      "partitions": [
+        {
+          "type": 1,
+          "subtype": 2,
+          "offset": 36864,
+          "size": 24576
+        },
+        {
+          "type": 1,
+          "subtype": 0,
+          "offset": 61440,
+          "size": 8192
+        },
+        {
+          "type": 1,
+          "subtype": 1,
+          "offset": 69632,
+          "size": 4096
+        },
+        {
+          "type": 0,
+          "subtype": 16,
+          "offset": 131072,
+          "size": 1966080
+        },
+        {
+          "type": 0,
+          "subtype": 17,
+          "offset": 2097152,
+          "size": 1966080
+        }
+      ],
+      "hardwareQualification": "not qualified; version-only rebuild of the previously tested RC source"
+    },
+    {
+      "environment": "xiaoc5_uart1_d6d7",
+      "appVersion": "1.3.0-pre-1-d6d7+xiaoc5",
+      "appBytes": 810592,
+      "appPartitionBytes": 1966080,
+      "partitions": [
+        {
+          "type": 1,
+          "subtype": 2,
+          "offset": 36864,
+          "size": 24576
+        },
+        {
+          "type": 1,
+          "subtype": 0,
+          "offset": 61440,
+          "size": 8192
+        },
+        {
+          "type": 1,
+          "subtype": 1,
+          "offset": 69632,
+          "size": 4096
+        },
+        {
+          "type": 0,
+          "subtype": 16,
+          "offset": 131072,
+          "size": 1966080
+        },
+        {
+          "type": 0,
+          "subtype": 17,
+          "offset": 2097152,
+          "size": 1966080
+        }
+      ],
+      "hardwareQualification": "not qualified; version-only rebuild of the previously tested RC source"
+    }
+  ],
+  "companion": "FPVGate 1.9.0-alpha-6 FPVGateC5MKAIO, distributed separately"
+}

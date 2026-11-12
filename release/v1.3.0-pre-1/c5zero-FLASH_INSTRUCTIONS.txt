@@ -1,0 +1,9 @@
+C5MK 1.3.0-pre-1 - c5zero
+
+Use the ESP32-C5 USB port, not the S3. Back up first. esptool 5.1+.
+
+python -m esptool --chip esp32c5 --port PORT --baud 921600 write-flash 0x2000 c5zero-bootloader.bin 0x8000 c5zero-partitions.bin 0xf000 c5zero-ota_data_initial.bin 0x20000 c5zero-firmware.bin
+
+NVS at 0x9000 is not written; full erase removes settings. Power cycle afterwards.
+Firmware identity: 1.3.0-pre-1+c5zero
+Testing prerelease: USB soak NOT PASSED; read RELEASE_NOTES.md.

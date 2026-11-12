@@ -1,0 +1,15 @@
+{
+  "release": "v1.3.0-pre-1",
+  "status": "TESTING PRERELEASE - NOT PRODUCTION QUALIFIED",
+  "newImagesHardwareTested": false,
+  "nativeSuitePassed": true,
+  "receiverLogicIdenticalToArchivedRcSource": true,
+  "priorRcFilterParityChecks": 11798808,
+  "priorRcParityCases": 28,
+  "usbSoak": "NOT PASSED: 295/320; heats 4-5 unresolved signal change",
+  "moderateNoiseIntervalTiming": "WORSE THAN STOCK",
+  "realVideoPassQualification": "PENDING",
+  "c5zeroReceiver": "BUILD ONLY",
+  "d6d7": "BUILD ONLY; modified AIO only",
+  "startupRecurrence": "C5 previously offline until full power cycle; unresolved"
+}

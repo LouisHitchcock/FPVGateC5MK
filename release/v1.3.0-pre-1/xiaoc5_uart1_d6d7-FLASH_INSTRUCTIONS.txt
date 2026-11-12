@@ -1,0 +1,10 @@
+C5MK 1.3.0-pre-1 - xiaoc5_uart1_d6d7
+
+Use the ESP32-C5 USB port, not the S3. Back up first. esptool 5.1+.
+MODIFIED D6/D7 AIO ONLY. NEVER USE ON A STANDARD AIO.
+
+python -m esptool --chip esp32c5 --port PORT --baud 921600 write-flash 0x2000 xiaoc5_uart1_d6d7-bootloader.bin 0x8000 xiaoc5_uart1_d6d7-partitions.bin 0xf000 xiaoc5_uart1_d6d7-ota_data_initial.bin 0x20000 xiaoc5_uart1_d6d7-firmware.bin
+
+NVS at 0x9000 is not written; full erase removes settings. Power cycle afterwards.
+Firmware identity: 1.3.0-pre-1-d6d7+xiaoc5
+Testing prerelease: USB soak NOT PASSED; read RELEASE_NOTES.md.

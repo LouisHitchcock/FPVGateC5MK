@@ -1,0 +1,253 @@
+{
+  "sourceCommit": "8fbd4078f508d1c96af3394522b325039c320249",
+  "files": [
+    {
+      "path": "host/c5host/c5host.cpp",
+      "sha256": "d3b8e90de1f059b4cfdb31ad5cc3809ab9645567376cbb86f278f827b911229e"
+    },
+    {
+      "path": "host/c5host/c5host.h",
+      "sha256": "34917972a1916bb994dd48664ab23811afc8cf02b3dfe9a17ca42aecfb856106"
+    },
+    {
+      "path": "host/c5host/library.json",
+      "sha256": "32aee0c0322d94653fe423aaa2c6590a75d76bc8433d1d6d332ee07e5fad8e10"
+    },
+    {
+      "path": "host/examples/esp32s3/platformio.ini",
+      "sha256": "eb29eb732b80934a663717d7351724eb684d9b6cc24f43dbcec70b83ec4e350d"
+    },
+    {
+      "path": "host/examples/esp32s3/src/main.cpp",
+      "sha256": "ddf89fd32c73301ca62cbc85cf9cbf51829e3abedc0f2952ccae1e74eacc7e3b"
+    },
+    {
+      "path": "multipilot/.gitignore",
+      "sha256": "25011b604165027c2a92856377b5667702785c05c6ee96a34f76744144989be5"
+    },
+    {
+      "path": "multipilot/CMakeLists.txt",
+      "sha256": "ef0755b26bb537a7d86d763dfbdeeab834317a7ab0411458ca02e174fb1faf77"
+    },
+    {
+      "path": "multipilot/check_sram.py",
+      "sha256": "9cb5637e12e117bc44b8ae6453994439136c57a349805cb0e964da44d47624aa"
+    },
+    {
+      "path": "multipilot/partitions.csv",
+      "sha256": "06ea12f83bfd5db50bb2296f9d382f8a3d50bf923737d96e3334be54aeb3a7c3"
+    },
+    {
+      "path": "multipilot/platformio.ini",
+      "sha256": "d9d8f6272b8f83197b0bd624fc7ffac3a4a4d07f5ea5ae70af06e976d42e2afb"
+    },
+    {
+      "path": "multipilot/sdkconfig.c5zero",
+      "sha256": "e88eb21ecfdaeeb5f0eae886ef190f3a06609443240a7e3a61dac853c929998b"
+    },
+    {
+      "path": "multipilot/sdkconfig.defaults",
+      "sha256": "d53dee2896ecc3b7732a5afbc145b17783a7f8614389a4f585fc74d9f55bce4b"
+    },
+    {
+      "path": "multipilot/sdkconfig.xiaoc5",
+      "sha256": "e88eb21ecfdaeeb5f0eae886ef190f3a06609443240a7e3a61dac853c929998b"
+    },
+    {
+      "path": "multipilot/sdkconfig.xiaoc5_uart1_d6d7",
+      "sha256": "21c910ccfd3bb56297c9f186eeac3005ad845bc089f6154bf83624615f53d0c2"
+    },
+    {
+      "path": "multipilot/src/CMakeLists.txt",
+      "sha256": "e1fba4a2ddd7fb42b8c494e2f8e6b102b7f9e38fa30a0a3a2db85a6e37e2643e"
+    },
+    {
+      "path": "multipilot/src/dump.cpp",
+      "sha256": "e6508f3a9eaa5527be0b479f984711078c35a4d14ed85b07cf106033451cd9a1"
+    },
+    {
+      "path": "multipilot/src/dump.h",
+      "sha256": "efef594846719f876aba279b1b089ed365ffd68303e4a6f33c3daf3ee496ce9b"
+    },
+    {
+      "path": "multipilot/src/frame.cpp",
+      "sha256": "3f3a46bbcf65dc817f05702a459d5c2c45da5ccedf250962452e65ff4f42de44"
+    },
+    {
+      "path": "multipilot/src/frame.h",
+      "sha256": "95edb075749c43f1060bdabb1019d8fec6ee2c3cae41090dd3f5c7b6b72f39b9"
+    },
+    {
+      "path": "multipilot/src/jump_reject.h",
+      "sha256": "54318127e4145c13219e63fd222e51da5f952763cc4a4d6b048565192d6e4e40"
+    },
+    {
+      "path": "multipilot/src/link.cpp",
+      "sha256": "d9d5cdcb0e4239f5c8b54ed98b23cf2e6fcfee1173d2b92f1da8b19ed5977058"
+    },
+    {
+      "path": "multipilot/src/link.h",
+      "sha256": "e18b050a1449dd2db1e44aac932d337b2744a22d7890a6959d37fd995ff12019"
+    },
+    {
+      "path": "multipilot/src/main.cpp",
+      "sha256": "d6f9644596bb06fcc7e869ec54e9a6d26b968fc1173430ea26159f6a692d8950"
+    },
+    {
+      "path": "multipilot/src/meter.cpp",
+      "sha256": "19a8c97777a941a78ba3f2b3db6e2d62063c56fcec20f8c4c12c5baeee2393c4"
+    },
+    {
+      "path": "multipilot/src/meter.h",
+      "sha256": "ef39ac264fff54d7a012324d6974becb8cd02acce131725554d0dc1215fd4766"
+    },
+    {
+      "path": "multipilot/src/node.cpp",
+      "sha256": "a0dc099da7183e22edb5114175ea06fb47e10d13c44f0f54cd4f8588e04ebcbb"
+    },
+    {
+      "path": "multipilot/src/node.h",
+      "sha256": "682cb204c8c058eea2937b896089ee3cabf50ab83c85575e06373e33b387b73c"
+    },
+    {
+      "path": "multipilot/src/node_core.cpp",
+      "sha256": "fc746e5359e53b39178a48a63a8fa0a1a8de5cb875c8dafe3072ce798db35f8b"
+    },
+    {
+      "path": "multipilot/src/node_core.h",
+      "sha256": "f63922ab58f01e7c809338c50711552a1446c5d2e9b5bf8e27bbe1cebd7f91a8"
+    },
+    {
+      "path": "multipilot/src/radio.cpp",
+      "sha256": "2ec29172dbe644be6b85632c9da695c71c5edcaaf308ccf5b9f3511cf497ac23"
+    },
+    {
+      "path": "multipilot/src/radio.h",
+      "sha256": "08a3b2c826450d019fef25ba2c1e08648b7dedb3a9f3b5a00a16a52868eea670"
+    },
+    {
+      "path": "multipilot/src/rh_usb.cpp",
+      "sha256": "209e962ab4e088e1de2a7e77800e8db241ce20e724511bc81c741c0d8681217e"
+    },
+    {
+      "path": "multipilot/src/rh_usb.h",
+      "sha256": "1e4b08a702df02c1e832edde2173ee6b295653066a8f1a548eab48053fd36522"
+    },
+    {
+      "path": "multipilot/src/rssi_filter.h",
+      "sha256": "f5630e1ca6d94806ec2d52d8a21812b6e29774ce011120969eec0d7224c016d8"
+    },
+    {
+      "path": "multipilot/src/rssi_median.h",
+      "sha256": "2b9ce9075b82b11769f504880732ed8ca0c11920a052d2a3286d425dd89a6d01"
+    },
+    {
+      "path": "multipilot/src/status_led.cpp",
+      "sha256": "37b522d3a7c8eb29bcd06f40214177e6157ea00e49d25b3071d39c7991f84153"
+    },
+    {
+      "path": "multipilot/src/status_led.h",
+      "sha256": "321246b5349c367442f69ae5d49fd5da2762b20c8036602fb489c298d011d100"
+    },
+    {
+      "path": "multipilot/test/linux_usb_bridge.cpp",
+      "sha256": "c843acafc7bcc78c2f863953f35137886efd554b68411faf0b5204860f249966"
+    },
+    {
+      "path": "multipilot/test/rh_replay.cpp",
+      "sha256": "d5f16099323421d2c3739469bbe8019b9f4f5d7132c9511b742d4c17b8f678ec"
+    },
+    {
+      "path": "multipilot/test/run.sh",
+      "sha256": "f0a7b948c8ac9dce7c43a65834fb907e4ef3cedd1b3f66f8d78ee268410ad784"
+    },
+    {
+      "path": "multipilot/test/run_linux_usb.sh",
+      "sha256": "9a0337fb7084ac127a158712009fe78c55bdd045643bf742b3e76bf16e480ef6"
+    },
+    {
+      "path": "multipilot/test/stubs/driver/usb_serial_jtag.h",
+      "sha256": "2f2e11057176d2d65c2d94f73087c695bb5470a61afd2e45d66def91cea712cc"
+    },
+    {
+      "path": "multipilot/test/stubs/freertos/FreeRTOS.h",
+      "sha256": "0ccb47032f5fd0b9ddbd24467031540872bcf1ce7735888031243cd70e87fb82"
+    },
+    {
+      "path": "multipilot/test/test_dashboard_transport.mjs",
+      "sha256": "f22e206d310c7295fa6af5fa89fef96dea4d0ecc4848dbc480e2ae09f45743f3"
+    },
+    {
+      "path": "multipilot/test/test_host.cpp",
+      "sha256": "ce2c40dc95b3f7a8db0f8c087350a6a70c988fe669c03ee5df8d89a438b2dcff"
+    },
+    {
+      "path": "multipilot/test/test_laps.mjs",
+      "sha256": "306e06a340334c566f7d262b58e0e5bded72e32daf3c77ffd845b1dd35d2e007"
+    },
+    {
+      "path": "multipilot/test/test_link.cpp",
+      "sha256": "696e77444805fdd33472ee271cb0584a36f84d246bcbc3fe8ef468db28453236"
+    },
+    {
+      "path": "multipilot/test/test_linux_usb.py",
+      "sha256": "76a4a553672544817b4606dd0e00f72668026499da4dfcb5ed391da839d98f43"
+    },
+    {
+      "path": "multipilot/test/test_mp.cpp",
+      "sha256": "3f093c4fa000a8ccd158b05eb73094dfbf89b679e82767e35b87877d187b27c5"
+    },
+    {
+      "path": "multipilot/test/test_node.cpp",
+      "sha256": "55fb132b60a42dd18fb07d0e10ea169b693c9cf0a82d83e6e4829f2bc44f11b9"
+    },
+    {
+      "path": "multipilot/test/test_rh_usb.cpp",
+      "sha256": "b8d089cce6ca51c0c486d8ebc6c9a2fe0ac8be7cb57202bf88d24a5169199537"
+    },
+    {
+      "path": "multipilot/test/test_rh_usb.py",
+      "sha256": "b47d79c518083c806af4c8e65a4e7bb8b4435d26365f28802f55701e2e0b83b5"
+    },
+    {
+      "path": "multipilot/test/test_rssi_graph.mjs",
+      "sha256": "df1cc1f37fd57e7851f93b3e294ffabb888cc41fdd192cc107553b6b97526710"
+    },
+    {
+      "path": "multipilot/test/test_spectrum.mjs",
+      "sha256": "9b21c6fb9b6a03826e8941ea206fd093454ac4c66412a70530626e594e0076a0"
+    },
+    {
+      "path": "multipilot/test/test_status_led.cpp",
+      "sha256": "13de6ef16c2324a2684a8294356b7a9292de2b9d97f52595c3ac5ce0ddc3cde1"
+    },
+    {
+      "path": "multipilot/test/test_timing_estimators.py",
+      "sha256": "b1455eb83cb6c8e4cb90119a0aa709a4c596a279c5a0ff62652fcd2d4cdee7fa"
+    },
+    {
+      "path": "multipilot/tools/c5_update_file.py",
+      "sha256": "92f17016935cd6e54485fd37ae284f6d134eec4bf4fb6e724bea91585573d017"
+    },
+    {
+      "path": "multipilot/tools/capture_web.mjs",
+      "sha256": "c132978c101de5de864587a07aaf209108cdc4b0269e4f62010fd2ee85f3cb3e"
+    },
+    {
+      "path": "multipilot/tools/mp.py",
+      "sha256": "fab63f109f9158597ed39fb96048265519e7015eb0c6122df623511305084179"
+    },
+    {
+      "path": "multipilot/tools/package_release.mjs",
+      "sha256": "1d3acb716a0cd6f67faadf575d4433ea8f92213076e5825e34afb2ce7962048d"
+    },
+    {
+      "path": "multipilot/tools/rh_db_report.py",
+      "sha256": "760989ff67fdb5d54bdc9e96e8aa6605e8e4f0353da2b4e12d01b61dc9e2b98b"
+    },
+    {
+      "path": "multipilot/tools/timing_estimator_report.py",
+      "sha256": "ed0ae657d0a7eb3aeaa9f88f024e41f01681116a65c046eb6220c18d034070a6"
+    }
+  ]
+}
