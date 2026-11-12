@@ -22,10 +22,11 @@ The online C5 flasher offers the normal XIAO/C5-Zero images. The D6/D7 image is 
 
 ## Installing the C5
 
-Use the **C5's own USB port** with esptool 5.1 or newer (ESP32-C5 support). Back up its 8 MB flash first:
+Use the **C5's own USB port** with esptool 5.1 or newer (ESP32-C5 support). Check the detected capacity with `flash-id`, then back up the full flash. Replace `SIZE` with that capacity in bytes (for example, `0x800000` for 8 MB):
 
 ```text
-python -m esptool --chip esp32c5 --port PORT read-flash 0 0x800000 backup.bin
+python -m esptool --chip esp32c5 --port PORT flash-id
+python -m esptool --chip esp32c5 --port PORT read-flash 0 SIZE backup.bin
 ```
 
 Run from the chosen board directory:
