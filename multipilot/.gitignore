@@ -3,4 +3,5 @@ logs/
 # Generated per environment from sdkconfig.defaults.
 sdkconfig.*
 !sdkconfig.defaults
+!sdkconfig.c5mkaio.defaults
 .pio/

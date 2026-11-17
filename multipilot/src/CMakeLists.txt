@@ -12,6 +12,6 @@ foreach(pin NODE_UART_TX_PIN NODE_UART_RX_PIN C5_RH_MEDIAN_MS)
     endif()
 endforeach()
 
-if(NODE_BOARD STREQUAL "xiaoc5")
+if(NODE_BOARD STREQUAL "xiaoc5" OR NODE_BOARD STREQUAL "c5mkaio")
     target_compile_definitions(${COMPONENT_LIB} PRIVATE STATUS_LED_XIAO=1)
 endif()
